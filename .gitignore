@@ -1,0 +1,53 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VSCode settings
+.vscode/
+
+# Environment files
+.env
+.venv/
+env/
+venv/
+ENV/
+_archives_to_delete_when_ready/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and output
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.db
+*.sqlite
+*.h5
+*.parquet
+
+# Logs
+*.log
+
+# Test and temp files
+*.tmp
+*.bak
+
+# Python egg files
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Ignore results and large files
+*.prn
+*.out
+*.dat
+*.sav
+*.zip
+*.tar.gz
