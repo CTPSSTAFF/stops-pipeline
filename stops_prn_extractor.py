@@ -112,11 +112,38 @@ class StopsPRNExtractor:
         return metadata
 
     @staticmethod
+    def _get_column_details_from_header(header_line, separator_line):
+        colspecs = []
+        names = []
+        
+        # Normalize the separator line to find column boundaries
+        # Replace spaces with a placeholder to distinguish them from column separators
+        normalized_separator = separator_line.replace(' ', 'S') 
+
+        current_start = 0
+        for match in re.finditer(r'[=-]+', normalized_separator):
+            start, end = match.span()
+            colspecs.append((current_start, end))
+            
+            # Extract name from header_line based on detected colspec
+            name = header_line[current_start:end].strip()
+            # Clean up the name
+            name = name.replace('--', '').replace('-', '_').replace(' ', '_').replace('.', '').strip()
+            names.append(name)
+            current_start = end
+        
+        return colspecs, names
+
+    @staticmethod
     def _extract_table_10_01_from_prn(file_path):
         metadata = {}
         actual_data_lines = []
         in_table_10_01_section = False
         started_collecting_data = False
+        header_line = ""
+        separator_line = ""
+        colspecs = []
+        names = []
 
         try:
             with open(file_path, 'r') as f:
@@ -131,13 +158,32 @@ class StopsPRNExtractor:
                 continue
 
             if in_table_10_01_section:
-                if i + 1 < len(lines):
-                    header_line_check = lines[i].strip()
+                if not started_collecting_data and i + 1 < len(lines):
+                    header_line_check = lines[i].rstrip() # Use rstrip to keep internal spaces but remove trailing
+                    separator_line_check = lines[i+1].strip()
+
+                    # Heuristic to identify the header and separator lines
+                    # Header should contain "Route_ID", "Route Name", "Count", "ALL"
+                    # Separator should be a continuous line of '='
                     if "Route_ID" in header_line_check and "Route Name" in header_line_check and \
                        "Count" in header_line_check and "ALL" in header_line_check and \
-                       re.search(r"^=+\s+=+\s+=+.*", lines[i+1]):
-                        started_collecting_data = True
-                        continue 
+                       re.search(r"^=+\s*=+\s*=+\s*=+\s*=+.*", separator_line_check): # Adjusted regex for separator
+                        
+                        header_line = header_line_check
+                        separator_line = separator_line_check
+                        colspecs, names = StopsPRNExtractor._get_column_details_from_header(header_line, separator_line)
+                        
+                        if colspecs and names:
+                            started_collecting_data = True
+                            # Skip the header and separator lines as they are handled
+                            continue
+                        else:
+                            # If we found header/separator but couldn't parse, reset and continue search
+                            header_line = ""
+                            separator_line = ""
+                            colspecs = []
+                            names = []
+
 
                 if started_collecting_data:
                     if "Total" in line and re.search(r"={20,}", lines[i+1] if i + 1 < len(lines) else ""):
@@ -152,33 +198,8 @@ class StopsPRNExtractor:
                     if line.strip() and not re.fullmatch(r"={2,}", line.strip()) and not re.fullmatch(r"-{2,}", line.strip()):
                         actual_data_lines.append(line.rstrip())
 
-        if not actual_data_lines:
+        if not actual_data_lines or not colspecs or not names:
             return pd.DataFrame(), metadata
-
-        colspecs = [
-            (0, 20),   # Route_ID
-            (20, 56),  # --Route Name
-            (56, 65),  # Count
-            (65, 75),  # Y2024_EXISTING_WLK
-            (75, 85),  # Y2024_EXISTING_KNR
-            (85, 95),  # Y2024_EXISTING_PNR
-            (95, 105), # Y2024_EXISTING_ALL
-            (105, 115),# Y2050_NO-BUILD_WLK
-            (115, 125),# Y2050_NO-BUILD_KNR
-            (125, 135),# Y2050_NO-BUILD_PNR
-            (135, 145),# Y2050_NO-BUILD_ALL
-            (145, 155),# Y2050_BUILD_WLK
-            (155, 165),# Y2050_BUILD_KNR
-            (165, 175),# Y2050_BUILD_PNR
-            (175, 185) # Y2050_BUILD_ALL
-        ]
-
-        names = [
-            "Route_ID", "Route_Name",
-            "Count", "Y2024_EXISTING_WLK", "Y2024_EXISTING_KNR", "Y2024_EXISTING_PNR", "Y2024_EXISTING_ALL",
-            "Y2050_NO-BUILD_WLK", "Y2050_NO-BUILD_KNR", "Y2050_NO-BUILD_PNR", "Y2050_NO-BUILD_ALL",
-            "Y2050_BUILD_WLK", "Y2050_BUILD_KNR", "Y2050_BUILD_PNR", "Y2050_BUILD_ALL"
-        ]
         
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
         df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names,
@@ -186,6 +207,7 @@ class StopsPRNExtractor:
 
         for col in df.columns:
             df[col] = df[col].str.strip()
+            # Attempt to convert to numeric only for columns that are not IDs or names
             if col not in ["Route_ID", "Route_Name"]:
                 df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
                 df[col] = df[col].fillna(0).astype(int)
@@ -198,6 +220,10 @@ class StopsPRNExtractor:
         actual_data_lines = []
         in_table_9_01_section = False
         started_collecting_data = False
+        header_line = ""
+        separator_line = ""
+        colspecs = []
+        names = []
 
         try:
             with open(file_path, 'r') as f:
@@ -213,15 +239,28 @@ class StopsPRNExtractor:
 
             if in_table_9_01_section:
                 if not started_collecting_data and i + 1 < len(lines):
-                    header_line_check = lines[i].strip()
+                    header_line_check = lines[i].rstrip() # Use rstrip to keep internal spaces but remove trailing
                     separator_line_check = lines[i+1].strip()
 
+                    # Heuristic to identify the header and separator lines for Table 9.01
                     header_pattern_match = re.search(r"Stop_id1\s+.*?Station Name\s+.*?WLK\s+.*?KNR\s+.*?PNR\s+.*?XFR\s+.*?ALL", header_line_check)
-                    separator_pattern_match = re.search(r"^=+\s+=+\s+=+.*", separator_line_check)
+                    separator_pattern_match = re.search(r"^=+\s*=+\s*=+\s*=+\s*=+.*", separator_line_check)
 
                     if header_pattern_match and separator_pattern_match:
-                        started_collecting_data = True
-                        continue 
+                        header_line = header_line_check
+                        separator_line = separator_line_check
+                        colspecs, names = StopsPRNExtractor._get_column_details_from_header(header_line, separator_line)
+
+                        if colspecs and names:
+                            started_collecting_data = True
+                            # Skip the header and separator lines as they are handled
+                            continue
+                        else:
+                            # If we found header/separator but couldn't parse, reset and continue search
+                            header_line = ""
+                            separator_line = ""
+                            colspecs = []
+                            names = []
 
                 if started_collecting_data:
                     if "Total" in line and re.search(r"={20,}", lines[i+1] if i + 1 < len(lines) else ""):
@@ -236,35 +275,8 @@ class StopsPRNExtractor:
                     if line.strip() and not re.fullmatch(r"={2,}", line.strip()) and not re.fullmatch(r"-{2,}", line.strip()):
                         actual_data_lines.append(line.rstrip())
 
-        if not actual_data_lines:
+        if not actual_data_lines or not colspecs or not names:
             return pd.DataFrame(), metadata
-
-        colspecs = [
-            (0, 26),   # Stop_id1
-            (26, 47),  # Station Name
-            (47, 58),  # Y2024_EXISTING_WLK
-            (58, 68),  # Y2024_EXISTING_KNR
-            (68, 78),  # Y2024_EXISTING_PNR
-            (78, 88),  # Y2024_EXISTING_XFR
-            (88, 98),  # Y2024_EXISTING_ALL
-            (98, 109), # Y2050_NO-BUILD_WLK
-            (109, 119),# Y2050_NO-BUILD_KNR
-            (119, 129),# Y2050_NO-BUILD_PNR
-            (129, 139),# Y2050_NO-BUILD_XFR
-            (139, 149),# Y2050_NO-BUILD_ALL
-            (149, 160),# Y2050_BUILD_WLK
-            (160, 170),# Y2050_BUILD_KNR
-            (170, 180),# Y2050_BUILD_PNR
-            (180, 190),# Y2050_BUILD_XFR
-            (190, 200) # Y2050_BUILD_ALL
-        ]
-
-        names = [
-            "Stop_id1", "Station_Name",
-            "Y2024_EXISTING_WLK", "Y2024_EXISTING_KNR", "Y2024_EXISTING_PNR", "Y2024_EXISTING_XFR", "Y2024_EXISTING_ALL",
-            "Y2050_NO-BUILD_WLK", "Y2050_NO-BUILD_KNR", "Y2050_NO-BUILD_PNR", "Y2050_NO-BUILD_XFR", "Y2050_NO-BUILD_ALL",
-            "Y2050_BUILD_WLK", "Y2050_BUILD_KNR", "Y2050_BUILD_PNR", "Y2050_BUILD_XFR", "Y2050_BUILD_ALL"
-        ]
         
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
         df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names,
