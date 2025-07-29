@@ -127,30 +127,26 @@ class StopsPRNExtractor:
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
             if in_table_10_01_section and start_of_table_data == -1:
-                # Identify the header and sub-header lines
                 header_line = None
                 sub_header_line = None
                 
-                # Look for the header line with years first
                 if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
                     header_line = line
-                    # The sub-header line is 2 lines below the year line in this table
                     if re.search(r"Route_ID.*WLK.*KNR", lines[i+2]):
                         sub_header_line = lines[i+2]
                         if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
                             start_of_table_data = i + 4
-                            break # Found headers and data start, exit this loop
+                            break
 
         if start_of_table_data == -1:
             return pd.DataFrame(), metadata
         
-        # Parse the headers to build colspecs and names
         main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
         header_info = []
         for m in main_headers:
             header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
         
-        colspecs = [(0, 20), (20, 56), (56, 65)] # Fixed columns
+        colspecs = [(0, 20), (20, 56), (56, 65)]
         names = ["Route_ID", "Route_Name", "Count"]
 
         start_of_dynamic_columns = 65
@@ -161,9 +157,9 @@ class StopsPRNExtractor:
                 colspecs.append((col_start, col_end))
                 names.append(f"{main_header['name']}_{sub_header}")
         
-        # Now collect the data rows
         for line_to_collect in lines[start_of_table_data:]:
             if "Total" in line_to_collect:
+                actual_data_lines.append(line_to_collect.rstrip())
                 break
             if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
                 break
@@ -174,14 +170,30 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
         
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
+        
+        # Define dtypes to prevent pandas from inferring float for empty string columns
+        dtypes_dict = {col: str for col in names}
+        
         df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names,
-                         dtype={col: str for col in names})
+                         dtype=dtypes_dict)
 
         for col in df.columns:
             df[col] = df[col].str.strip()
+            # Special handling for "Route_Name" and "Route_ID"
             if col not in ["Route_ID", "Route_Name"]:
                 df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
                 df[col] = df[col].fillna(0).astype(int)
+
+        # Clean up the "Total" row to align with the rest of the data
+        if not df.empty:
+            last_row = df.iloc[-1]
+            # Check for "total" in a more robust way
+            route_name_val = str(last_row["Route_Name"]).strip().lower()
+            if route_name_val == "total":
+                df.at[df.index[-1], "Route_Name"] = "Total"
+                df.at[df.index[-1], "Route_ID"] = "Total"
+                # Fill any other empty cells in the total row with 0
+                df.iloc[-1] = df.iloc[-1].fillna(0)
 
         return df, metadata
 
@@ -209,25 +221,23 @@ class StopsPRNExtractor:
                 header_line = None
                 sub_header_line = None
                 
-                # Look for the header line with years first
                 if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
                     header_line = line
                     if re.search(r"Stop_id1.*WLK.*KNR", lines[i+2]):
                         sub_header_line = lines[i+2]
                         if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
                             start_of_table_data = i + 4
-                            break # Found headers and data start, exit this loop
+                            break
 
         if start_of_table_data == -1:
             return pd.DataFrame(), metadata
         
-        # Parse headers to build colspecs and names
         main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
         header_info = []
         for m in main_headers:
             header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
         
-        colspecs = [(0, 26), (26, 47)] # Fixed columns
+        colspecs = [(0, 26), (26, 47)]
         names = ["Stop_id1", "Station_Name"]
 
         start_of_dynamic_columns = 47
@@ -243,9 +253,9 @@ class StopsPRNExtractor:
                 colspecs.append((col_start, col_end))
                 names.append(f"{main_header['name']}_{sub_header}")
         
-        # Now collect the data rows
         for line_to_collect in lines[start_of_table_data:]:
             if "Total" in line_to_collect:
+                actual_data_lines.append(line_to_collect.rstrip())
                 break
             if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
                 break
@@ -256,13 +266,24 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
+        
+        dtypes_dict = {col: str for col in names}
+        
         df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names,
-                         dtype={col: str for col in names})
+                         dtype=dtypes_dict)
 
         for col in df.columns:
             df[col] = df[col].str.strip()
             if col not in ["Stop_id1", "Station_Name"]:
                 df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
                 df[col] = df[col].fillna(0).astype(int)
+
+        if not df.empty:
+            last_row = df.iloc[-1]
+            station_name_val = str(last_row["Station_Name"]).strip().lower()
+            if station_name_val == "total":
+                df.at[df.index[-1], "Station_Name"] = "Total"
+                df.at[df.index[-1], "Stop_id1"] = "Total"
+                df.iloc[-1] = df.iloc[-1].fillna(0)
 
         return df, metadata
