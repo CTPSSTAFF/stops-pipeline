@@ -1,4 +1,3 @@
-# Re-importing necessary libraries as a good practice
 import pandas as pd
 import io
 import re
@@ -56,7 +55,7 @@ class StopsPRNExtractor:
                 self.metadata[f"{alias}_table_10_02"] = meta
             else:
                 print(f"Warning: Table 10.02 could not be extracted from {file_path}")
-
+    
     def export_to_csv(self, output_dir="extracted_tables"):
         """
         Exports all extracted tables to individual CSV files.
@@ -303,109 +302,84 @@ class StopsPRNExtractor:
     @staticmethod
     def _extract_table_10_02_from_prn(file_path):
         metadata = {}
-        all_data_rows = []
+        all_data_text = []
         in_table_10_02_section = False
-        start_of_table_data = -1
-        colspecs_main = [(0, 20), (20, 56), (56, 65)]
-        names_main = ["Route_ID", "Group_Name", "Count"]
-
-        colspecs_sub = [(20, 56)]
-        names_sub = ["Group_Name"]
+        start_of_data = -1
+        header_line = None
         
         try:
             with open(file_path, 'r') as f:
                 lines = f.readlines()
         except FileNotFoundError:
             return pd.DataFrame(), {}
-
+        
         for i, line in enumerate(lines):
             if re.search(r"Table\s+10\.02", line):
                 in_table_10_02_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
-
-            if in_table_10_02_section and start_of_table_data == -1:
-                header_line = None
-                sub_header_line = None
-                
-                if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
+            
+            if in_table_10_02_section and start_of_data == -1:
+                if re.search(r"Y20\d\d", line):
                     header_line = line
-                    if re.search(r"Route_ID.*Count.*WLK", lines[i+2]):
-                        sub_header_line = lines[i+2]
-                        if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
-                            start_of_table_data = i + 4
-                            break
-
-        if start_of_table_data == -1:
+                if header_line and re.search(r"Route_ID.*Count", line):
+                    if i + 1 < len(lines) and re.search(r"^=+", lines[i + 1]):
+                        start_of_data = i + 2
+                        break
+        
+        if start_of_data == -1 or header_line is None:
             return pd.DataFrame(), metadata
 
         main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = []
-        for m in main_headers:
-            header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
+        header_info = [{'name': re.sub(r'\s+', '_', m.group(1).strip()), 'start': m.start()} for m in main_headers]
         
-        # Build dynamic colspecs for sub-lines based on header info
-        colspecs_sub_dynamic = []
-        names_sub_dynamic = []
+        colspecs = [(0, 20), (20, 56), (56, 65)]
+        names = ["Route_ID", "Group_Name", "Count"]
+
         start_of_dynamic_columns = 65
         for i, main_header in enumerate(header_info):
             for j, sub_header in enumerate(["WLK", "KNR", "PNR", "ALL"]):
                 col_start = start_of_dynamic_columns + (i * 40) + (j * 10)
                 col_end = col_start + 10
-                colspecs_sub_dynamic.append((col_start, col_end))
-                names_sub_dynamic.append(f"{main_header['name']}_{sub_header}")
+                colspecs.append((col_start, col_end))
+                names.append(f"{main_header['name']}_{sub_header}")
         
-        # Combine the lists for sub-lines
-        colspecs_sub = colspecs_sub + colspecs_sub_dynamic
-        names_sub = names_sub + names_sub_dynamic
-        
-        # Master list of all column names for the final DataFrame
-        all_col_names = names_main + names_sub_dynamic
-        
-        current_route_id = None
-        current_route_name = None
-        
-        for line_to_collect in lines[start_of_table_data:]:
-            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+        for line in lines[start_of_data:]:
+            if re.search(r"Table\s+\d+\.\d+", line) or re.search(r"Program STOPS", line):
                 break
-            
-            line_data = line_to_collect.rstrip()
-            
-            # Check for main Route_ID line
-            if re.match(r"^\S", line_data) and line_data.strip():
-                df_line = pd.read_fwf(io.StringIO(line_data), colspecs=colspecs_main, header=None, names=names_main, dtype=str)
-                row_dict = df_line.iloc[0].to_dict()
-                
-                # Update current route info
-                current_route_id = row_dict["Route_ID"]
-                current_route_name = row_dict["Group_Name"]
-                
-                # Add None for dynamic columns
-                for col in names_sub_dynamic:
-                    row_dict[col] = None
-                all_data_rows.append(row_dict)
-            
-            # Check for indented sub-group lines or total group lines
-            elif re.match(r"^\s{2,}\S", line_data) and line_data.strip():
-                df_line = pd.read_fwf(io.StringIO(line_data), colspecs=colspecs_sub, header=None, names=names_sub, dtype=str)
-                row_dict = df_line.iloc[0].to_dict()
-                
-                # Prepend the current route information
-                row_dict["Route_ID"] = current_route_id
-                row_dict["Count"] = None
-                
-                # The 'Group_Name' is correctly parsed from this line
-                all_data_rows.append(row_dict)
-
-        if not all_data_rows:
+            if line.strip() and not re.fullmatch(r"={2,}", line.strip()):
+                all_data_text.append(line)
+        
+        if not all_data_text:
             return pd.DataFrame(), metadata
         
-        # Create the DataFrame from the list of dictionaries
-        df = pd.DataFrame(all_data_rows, columns=all_col_names)
+        data_io = io.StringIO('\n'.join(all_data_text))
         
-        # Final cleanup and type conversion
-        for col in df.columns:
-            if col not in ["Route_ID", "Group_Name"]:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
-                df[col] = df[col].fillna(0).astype(int)
+        df = pd.read_fwf(data_io, colspecs=colspecs, header=None, names=names, dtype=str)
+        
+        df["Route_ID"] = df["Route_ID"].str.strip().replace('', pd.NA)
+        df["Group_Name"] = df["Group_Name"].str.strip().replace('', pd.NA)
+        df["Count"] = df["Count"].str.strip().replace('', pd.NA)
+        
+        df['Route_Name'] = df['Group_Name'].apply(lambda x: x if str(x).startswith('--') else pd.NA)
+        
+        # Propagate Route_ID and Route_Name down to sub-group rows
+        df['Route_ID'] = df['Route_ID'].ffill()
+        df['Route_Name'] = df['Route_Name'].ffill()
+        
+        df.loc[df['Group_Name'].str.startswith('--', na=False), 'Group_Name'] = pd.NA
+        
+        is_total_header = df['Route_ID'].str.lower().str.strip() == 'total'
+        df.loc[is_total_header, 'Route_Name'] = 'Total'
+        df.loc[is_total_header, 'Group_Name'] = None
+        df.loc[is_total_header & (df['Group_Name'].isnull()), 'Group_Name'] = 'Total'
+        
+        # Reorder columns to the desired output format
+        final_names = ["Route_ID", "Route_Name", "Group_Name", "Count"] + names[3:]
+        df = df[final_names]
+        
+        for col in names[3:]:
+            df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
+        
+        df["Count"] = pd.to_numeric(df["Count"], errors='coerce')
         
         return df, metadata
