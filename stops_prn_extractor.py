@@ -111,8 +111,9 @@ class StopsPRNExtractor:
         metadata = {}
         actual_data_lines = []
         in_table_10_01_section = False
-        header_line_index = -1
-        sub_header_line_index = -1
+        start_of_table_data = -1
+        colspecs = []
+        names = []
         
         try:
             with open(file_path, 'r') as f:
@@ -125,71 +126,51 @@ class StopsPRNExtractor:
                 in_table_10_01_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
-            if in_table_10_01_section:
-                # Find the main header line with the years
-                if re.search(r"Y20\d\d", line) and header_line_index == -1:
-                    header_line_index = i
+            if in_table_10_01_section and start_of_table_data == -1:
+                # Identify the header and sub-header lines
+                header_line = None
+                sub_header_line = None
                 
-                # Find the sub-header line with WLK, KNR, PNR, etc.
-                if re.search(r"Route_ID\s+.*Route Name.*Count.*(WLK|KNR|PNR|XFR|ALL)", line) and sub_header_line_index == -1:
-                    if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
-                        sub_header_line_index = i
-                        
-                        # We've found the headers, now parse them to build colspecs and names
-                        main_header_line = lines[header_line_index]
-                        sub_header_line = lines[sub_header_line_index + 2] if sub_header_line_index + 2 < len(lines) else ""
-                        
-                        # Find main headers and their start positions
-                        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", main_header_line)
-                        header_info = []
-                        for m in main_headers:
-                            header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
-                        
-                        # Find sub-headers and their start/end positions
-                        sub_headers = re.finditer(r"\b(WLK|KNR|PNR|XFR|ALL)\b", sub_header_line)
-                        sub_header_info = []
-                        for m in sub_headers:
-                            sub_header_info.append({'name': m.group(1), 'start': m.start(), 'end': m.end()})
+                # Look for the header line with years first
+                if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
+                    header_line = line
+                    # The sub-header line is 2 lines below the year line in this table
+                    if re.search(r"Route_ID.*WLK.*KNR", lines[i+2]):
+                        sub_header_line = lines[i+2]
+                        if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
+                            start_of_table_data = i + 4
+                            break # Found headers and data start, exit this loop
 
-                        # Build a combined list of column headers and their positions
-                        colspecs = [(0, 20), (20, 56), (56, 65)] # Fixed columns
-                        names = ["Route_ID", "Route_Name", "Count"]
+        if start_of_table_data == -1:
+            return pd.DataFrame(), metadata
+        
+        # Parse the headers to build colspecs and names
+        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
+        header_info = []
+        for m in main_headers:
+            header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
+        
+        colspecs = [(0, 20), (20, 56), (56, 65)] # Fixed columns
+        names = ["Route_ID", "Route_Name", "Count"]
 
-                        # Determine the start position of the first dynamic column block
-                        start_of_dynamic_columns = 65
-
-                        for i, main_header in enumerate(header_info):
-                            # The start position for sub-columns is the start of the main header
-                            # adjusted for padding
-                            year_start_pos = main_header['start']
-                            
-                            # Find the sub-headers that fall within this main header's span
-                            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "ALL"]):
-                                # Calculate the start and end of the column based on fixed widths
-                                col_start = start_of_dynamic_columns + (i * 40) + (j * 10)
-                                col_end = col_start + 10
-                                colspecs.append((col_start, col_end))
-                                names.append(f"{main_header['name']}_{sub_header}")
-                        
-                        if sub_header_line_index != -1:
-                            # Start collecting data after the separator line
-                            for line_to_collect in lines[sub_header_line_index + 3:]:
-                                if "Total" in line_to_collect and re.search(r"={20,}", lines[lines.index(line_to_collect) + 1]):
-                                    actual_data_lines.append(line_to_collect.rstrip())
-                                    in_table_10_01_section = False
-                                    break
-                                
-                                if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
-                                    in_table_10_01_section = False
-                                    break
-
-                                if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
-                                    actual_data_lines.append(line_to_collect.rstrip())
-                            
-                            # Break the outer loop once data collection is complete
-                            break
-
-        if not actual_data_lines or not colspecs or len(colspecs) != len(names):
+        start_of_dynamic_columns = 65
+        for i, main_header in enumerate(header_info):
+            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "ALL"]):
+                col_start = start_of_dynamic_columns + (i * 40) + (j * 10)
+                col_end = col_start + 10
+                colspecs.append((col_start, col_end))
+                names.append(f"{main_header['name']}_{sub_header}")
+        
+        # Now collect the data rows
+        for line_to_collect in lines[start_of_table_data:]:
+            if "Total" in line_to_collect:
+                break
+            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+                break
+            if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
+                actual_data_lines.append(line_to_collect.rstrip())
+        
+        if not actual_data_lines or len(colspecs) != len(names):
             return pd.DataFrame(), metadata
         
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
@@ -209,8 +190,9 @@ class StopsPRNExtractor:
         metadata = {}
         actual_data_lines = []
         in_table_9_01_section = False
-        header_line_index = -1
-        sub_header_line_index = -1
+        start_of_table_data = -1
+        colspecs = []
+        names = []
         
         try:
             with open(file_path, 'r') as f:
@@ -223,78 +205,54 @@ class StopsPRNExtractor:
                 in_table_9_01_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
 
-            if in_table_9_01_section:
-                # Find the main header line with the years
-                if re.search(r"Y20\d\d", line) and header_line_index == -1:
-                    header_line_index = i
+            if in_table_9_01_section and start_of_table_data == -1:
+                header_line = None
+                sub_header_line = None
                 
-                # Find the sub-header line with WLK, KNR, PNR, etc.
-                if re.search(r"Stop_id1\s+.*Station Name.*WLK.*KNR.*PNR.*XFR.*ALL", line) and sub_header_line_index == -1:
-                    if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
-                        sub_header_line_index = i
+                # Look for the header line with years first
+                if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
+                    header_line = line
+                    if re.search(r"Stop_id1.*WLK.*KNR", lines[i+2]):
+                        sub_header_line = lines[i+2]
+                        if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
+                            start_of_table_data = i + 4
+                            break # Found headers and data start, exit this loop
 
-                        # Parse headers to build colspecs and names
-                        main_header_line = lines[header_line_index]
-                        sub_header_line = lines[sub_header_line_index + 2] if sub_header_line_index + 2 < len(lines) else ""
-                        
-                        # Find main headers and their start positions
-                        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", main_header_line)
-                        header_info = []
-                        for m in main_headers:
-                            header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
-                        
-                        # Find sub-headers and their start/end positions
-                        sub_headers = re.finditer(r"\b(WLK|KNR|PNR|XFR|ALL)\b", sub_header_line)
-                        sub_header_info = []
-                        for m in sub_headers:
-                            sub_header_info.append({'name': m.group(1), 'start': m.start()})
+        if start_of_table_data == -1:
+            return pd.DataFrame(), metadata
+        
+        # Parse headers to build colspecs and names
+        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
+        header_info = []
+        for m in main_headers:
+            header_info.append({'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()})
+        
+        colspecs = [(0, 26), (26, 47)] # Fixed columns
+        names = ["Stop_id1", "Station_Name"]
 
-                        # Build a combined list of column headers and their positions
-                        colspecs = [(0, 26), (26, 47)] # Fixed columns
-                        names = ["Stop_id1", "Station_Name"]
-
-                        # Determine the start position of the first dynamic column block
-                        start_of_dynamic_columns = 47
-
-                        for i, main_header in enumerate(header_info):
-                            # The start position for sub-columns is the start of the main header
-                            # adjusted for padding
-                            year_start_pos = main_header['start']
-                            
-                            # Find the sub-headers that fall within this main header's span
-                            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "XFR", "ALL"]):
-                                # Calculate the start and end of the column based on fixed widths
-                                # The first column 'WLK' is 11 wide, the rest are 10
-                                if j == 0:
-                                    col_start = start_of_dynamic_columns + (i * 51)
-                                    col_end = col_start + 11
-                                else:
-                                    col_start = start_of_dynamic_columns + (i * 51) + 11 + ((j - 1) * 10)
-                                    col_end = col_start + 10
-                                
-                                colspecs.append((col_start, col_end))
-                                names.append(f"{main_header['name']}_{sub_header}")
-                        
-                        if sub_header_line_index != -1:
-                            # Start collecting data after the separator line
-                            for line_to_collect in lines[sub_header_line_index + 3:]:
-                                if "Total" in line_to_collect and re.search(r"={20,}", lines[lines.index(line_to_collect) + 1]):
-                                    actual_data_lines.append(line_to_collect.rstrip())
-                                    in_table_9_01_section = False
-                                    break
-                                
-                                if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
-                                    in_table_9_01_section = False
-                                    break
-
-                                if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
-                                    actual_data_lines.append(line_to_collect.rstrip())
-                            
-                            # Break the outer loop once data collection is complete
-                            break
-
-
-        if not actual_data_lines or not colspecs or len(colspecs) != len(names):
+        start_of_dynamic_columns = 47
+        for i, main_header in enumerate(header_info):
+            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "XFR", "ALL"]):
+                if j == 0:
+                    col_start = start_of_dynamic_columns + (i * 51)
+                    col_end = col_start + 11
+                else:
+                    col_start = start_of_dynamic_columns + (i * 51) + 11 + ((j - 1) * 10)
+                    col_end = col_start + 10
+                
+                colspecs.append((col_start, col_end))
+                names.append(f"{main_header['name']}_{sub_header}")
+        
+        # Now collect the data rows
+        for line_to_collect in lines[start_of_table_data:]:
+            if "Total" in line_to_collect:
+                break
+            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+                break
+            if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
+                actual_data_lines.append(line_to_collect.rstrip())
+        
+        if not actual_data_lines or len(colspecs) != len(names):
             return pd.DataFrame(), metadata
 
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
