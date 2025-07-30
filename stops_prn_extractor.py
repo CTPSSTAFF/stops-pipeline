@@ -17,49 +17,72 @@ class StopsPRNExtractor:
         for alias, file_path in file_info_list:
             self.files[alias] = file_path
 
-    def extract_table_10_01(self):
+    def extract_all_tables(self):
         """
-        Extract Table 10.01 and metadata from all loaded files.
+        Extracts all specified tables from all loaded files.
         Populates self.tables and self.metadata.
         """
         for alias, file_path in self.files.items():
-            df, meta = self._extract_table_10_01_from_prn(file_path)
-            if not df.empty:
-                self.tables[alias] = df
-                self.metadata[alias] = meta
-            else:
-                print(f"Warning: Table 10.01 could not be extracted from {file_path}")
-
-    def extract_table_9_01(self):
-        """
-        Extract Table 9.01 and metadata from all loaded files.
-        Populates self.tables and self.metadata.
-        """
-        for alias, file_path in self.files.items():
-            df, meta = self._extract_table_9_01_from_prn(file_path)
-            if not df.empty:
-                self.tables[f"{alias}_table_9_01"] = df
-                self.metadata[f"{alias}_table_9_01"] = meta
+            # Extract Table 9.01
+            df_9_01, meta_9_01 = self._extract_table_9_01_from_prn(file_path)
+            if not df_9_01.empty:
+                self.tables[f"{alias}_table_9_01"] = df_9_01
+                self.metadata[f"{alias}_table_9_01"] = meta_9_01
             else:
                 print(f"Warning: Table 9.01 could not be extracted from {file_path}")
 
-    def extract_table_10_02(self):
-        """
-        Extract Table 10.02 and metadata from all loaded files.
-        Populates self.tables and self.metadata.
-        """
-        for alias, file_path in self.files.items():
-            df, meta = self._extract_table_10_02_from_prn(file_path)
-            if not df.empty:
-                self.tables[f"{alias}_table_10_02"] = df
-                self.metadata[f"{alias}_table_10_02"] = meta
+            # Extract Table 10.01
+            df_10_01, meta_10_01 = self._extract_table_10_01_from_prn(file_path)
+            if not df_10_01.empty:
+                self.tables[f"{alias}_table_10_01"] = df_10_01
+                self.metadata[f"{alias}_table_10_01"] = meta_10_01
+            else:
+                print(f"Warning: Table 10.01 could not be extracted from {file_path}")
+            
+            # Extract Table 10.02
+            df_10_02, meta_10_02 = self._extract_table_10_02_from_prn(file_path)
+            if not df_10_02.empty:
+                self.tables[f"{alias}_table_10_02"] = df_10_02
+                self.metadata[f"{alias}_table_10_02"] = meta_10_02
             else:
                 print(f"Warning: Table 10.02 could not be extracted from {file_path}")
-    
+
+            # Extract Table 11.01
+            df_11_01, meta_11_01 = self._extract_table_11_from_prn(file_path, "11.01")
+            if not df_11_01.empty:
+                self.tables[f"{alias}_table_11_01"] = df_11_01
+                self.metadata[f"{alias}_table_11_01"] = meta_11_01
+            else:
+                print(f"Warning: Table 11.01 could not be extracted from {file_path}")
+
+            # Extract Table 11.02
+            df_11_02, meta_11_02 = self._extract_table_11_from_prn(file_path, "11.02")
+            if not df_11_02.empty:
+                self.tables[f"{alias}_table_11_02"] = df_11_02
+                self.metadata[f"{alias}_table_11_02"] = meta_11_02
+            else:
+                print(f"Warning: Table 11.02 could not be extracted from {file_path}")
+
+            # Extract Table 11.03
+            df_11_03, meta_11_03 = self._extract_table_11_from_prn(file_path, "11.03")
+            if not df_11_03.empty:
+                self.tables[f"{alias}_table_11_03"] = df_11_03
+                self.metadata[f"{alias}_table_11_03"] = meta_11_03
+            else:
+                print(f"Warning: Table 11.03 could not be extracted from {file_path}")
+
+            # Extract Table 11.04
+            df_11_04, meta_11_04 = self._extract_table_11_from_prn(file_path, "11.04")
+            if not df_11_04.empty:
+                self.tables[f"{alias}_table_11_04"] = df_11_04
+                self.metadata[f"{alias}_table_11_04"] = meta_11_04
+            else:
+                print(f"Warning: Table 11.04 could not be extracted from {file_path}")
+
     def export_to_csv(self, output_dir="extracted_tables"):
         """
-        Exports all extracted tables to individual CSV files.
-        Each file will be named according to its extracted alias and table type.
+        Exports all extracted tables to individual CSV files within a folder for each table type.
+        The filename will be based on the original alias and the table number.
         output_dir: directory where CSV files will be saved.
         """
         if not os.path.exists(output_dir):
@@ -67,17 +90,44 @@ class StopsPRNExtractor:
             print(f"Created directory: {output_dir}")
 
         for alias_key, dataframe in self.tables.items():
-            file_name = ""
+            # Determine table type and original alias
+            table_type = ""
+            original_alias = alias_key
             if "_table_9_01" in alias_key:
+                table_type = "Table_9_01"
                 original_alias = alias_key.replace("_table_9_01", "")
-                file_name = f"{original_alias}_Table_9_01.csv"
+            elif "_table_10_01" in alias_key:
+                table_type = "Table_10_01"
+                original_alias = alias_key.replace("_table_10_01", "")
             elif "_table_10_02" in alias_key:
+                table_type = "Table_10_02"
                 original_alias = alias_key.replace("_table_10_02", "")
-                file_name = f"{original_alias}_Table_10_02.csv"
+            elif "_table_11_01" in alias_key:
+                table_type = "Table_11_01"
+                original_alias = alias_key.replace("_table_11_01", "")
+            elif "_table_11_02" in alias_key:
+                table_type = "Table_11_02"
+                original_alias = alias_key.replace("_table_11_02", "")
+            elif "_table_11_03" in alias_key:
+                table_type = "Table_11_03"
+                original_alias = alias_key.replace("_table_11_03", "")
+            elif "_table_11_04" in alias_key:
+                table_type = "Table_11_04"
+                original_alias = alias_key.replace("_table_11_04", "")
             else:
-                file_name = f"{alias_key}_Table_10_01.csv"
-            
-            output_path = os.path.join(output_dir, file_name)
+                # Skip if table type is not recognized
+                continue
+
+            # Create the table-specific folder
+            table_folder = os.path.join(output_dir, table_type)
+            if not os.path.exists(table_folder):
+                os.makedirs(table_folder)
+                print(f"Created directory: {table_folder}")
+
+            # Create the final file path using the original alias
+            file_name = f"[{original_alias}]__{table_type}.csv"
+            output_path = os.path.join(table_folder, file_name)
+
             try:
                 dataframe.to_csv(output_path, index=False)
                 print(f"Exported '{alias_key}' to '{output_path}' successfully.")
@@ -385,5 +435,78 @@ class StopsPRNExtractor:
             df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
         
         df["Count"] = pd.to_numeric(df["Count"], errors='coerce')
+        
+        return df, metadata
+
+    @staticmethod
+    def _extract_table_11_from_prn(file_path, table_id):
+        metadata = {}
+        data_text = []
+        in_table_section = False
+        start_of_data = -1
+        
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return pd.DataFrame(), {}
+        
+        header_line = None
+        for i, line in enumerate(lines):
+            if re.search(r"Table\s+" + re.escape(table_id), line):
+                in_table_section = True
+                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
+            
+            if in_table_section and start_of_data == -1:
+                if re.search(r"Y20\d\d", line) and re.search(r"EXISTING", line):
+                    header_line = line
+                    sub_header_line = lines[i + 1]
+                    separator_line = lines[i + 2]
+                    if re.search(r"=", separator_line):
+                        start_of_data = i + 3
+                        break
+        
+        if start_of_data == -1 or header_line is None:
+            return pd.DataFrame(), metadata
+
+        # Define fixed-width column specifications and names
+        colspecs = [(0, 10), (10, 30), (30, 44), 
+                    (45, 52), (53, 61), 
+                    (62, 70), (71, 79), 
+                    (80, 88), (89, 97), 
+                    (98, 106), (107, 115)]
+        
+        names = ["HH_Cars", "Sub_mode", "Access_mode", 
+                 "Y2024_EXISTING_Model", "Y2024_EXISTING_Survey",
+                 "Y2050_NO_BUILD_Model", "Y2050_NO_BUILD_Survey",
+                 "Y2050_BUILD_Model", "Y2050_BUILD_Survey",
+                 "Y2050_BUILD_Project_Model", "Y2050_BUILD_Project_Survey"]
+        
+        # Collect data lines and skip separator lines
+        for line in lines[start_of_data:]:
+            if re.search(r"Table\s+\d+\.\d+", line) or re.search(r"Program STOPS", line):
+                break
+            if re.fullmatch(r"[-=]+\s+.*", line.strip()) or not line.strip():
+                continue
+            data_text.append(line.rstrip())
+        
+        if not data_text or len(colspecs) != len(names):
+            print(f"Warning: Data lines or column specification mismatch for Table {table_id}")
+            return pd.DataFrame(), metadata
+        
+        data_io = io.StringIO('\n'.join(data_text))
+        
+        df = pd.read_fwf(data_io, colspecs=colspecs, header=None, names=names, dtype=str)
+
+        # Clean and convert data types
+        for col in df.columns:
+            df[col] = df[col].str.strip()
+            if col not in ["HH_Cars", "Sub_mode", "Access_mode"]:
+                df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
+                df[col] = df[col].fillna(0).astype(int)
+        
+        # Forward fill the main grouping columns
+        df['HH_Cars'] = df['HH_Cars'].mask(df['HH_Cars'].eq('')).ffill()
+        df['Sub_mode'] = df['Sub_mode'].mask(df['Sub_mode'].eq('')).ffill()
         
         return df, metadata
