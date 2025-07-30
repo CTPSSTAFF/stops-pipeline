@@ -366,12 +366,16 @@ class StopsPRNExtractor:
         df['Route_ID'] = df['Route_ID'].ffill()
         df['Route_Name'] = df['Route_Name'].ffill()
         
+        # Clean up the Group_Name column for the main route header rows
         df.loc[df['Group_Name'].str.startswith('--', na=False), 'Group_Name'] = pd.NA
         
-        is_total_header = df['Route_ID'].str.lower().str.strip() == 'total'
+        # Correctly handle the special case for the 'Total' rows
+        is_total_header = df['Route_ID'].str.lower().str.strip().eq('total')
         df.loc[is_total_header, 'Route_Name'] = 'Total'
-        df.loc[is_total_header, 'Group_Name'] = None
-        df.loc[is_total_header & (df['Group_Name'].isnull()), 'Group_Name'] = 'Total'
+        
+        is_total_group_name = df['Group_Name'].str.lower().str.strip().eq('total')
+        df.loc[is_total_group_name, 'Group_Name'] = 'Total'
+        df.loc[is_total_group_name, 'Route_Name'] = 'Total'
         
         # Reorder columns to the desired output format
         final_names = ["Route_ID", "Route_Name", "Group_Name", "Count"] + names[3:]
