@@ -470,11 +470,11 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         # Define fixed-width column specifications and names
-        colspecs = [(0, 10), (10, 30), (30, 44), 
-                    (45, 52), (53, 61), 
-                    (62, 70), (71, 79), 
-                    (80, 88), (89, 97), 
-                    (98, 106), (107, 115)]
+        colspecs = [(0, 9), (9, 29), (29, 43), 
+                    (44, 52), (52, 61), 
+                    (61, 70), (70, 79), 
+                    (79, 88), (88, 97), 
+                    (97, 106), (106, 115)]
         
         names = ["HH_Cars", "Sub_mode", "Access_mode", 
                  "Y2024_EXISTING_Model", "Y2024_EXISTING_Survey",
@@ -500,7 +500,13 @@ class StopsPRNExtractor:
 
         # Clean and convert data types
         for col in df.columns:
+            # First, clean the specific columns as requested
+            if col == "Access_mode":
+                df[col] = df[col].str.replace('|', '', regex=False).str.strip()
+            
+            # Then, perform the general stripping
             df[col] = df[col].str.strip()
+            
             if col not in ["HH_Cars", "Sub_mode", "Access_mode"]:
                 df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
                 df[col] = df[col].fillna(0).astype(int)
