@@ -59,20 +59,33 @@ class ReportGenerator:
         file_list = glob.glob(file_pattern, recursive=True)
 
         for file_path in file_list:
+            print(f"\nProcessing file: {os.path.basename(file_path)}") # Debug print
             try:
                 df = pd.read_csv(file_path)
                 match = re.search(r'\[(.*?)\]', os.path.basename(file_path))
                 year_or_scenario = match.group(1) if match else 'unknown'
+                print(f"  Extracted Year/Scenario: {year_or_scenario}") # Debug print
                 
                 system_df_raw = df[df[name_col].str.lower().str.strip() == total_value.lower()].copy()
                 item_df_raw = df[df[name_col].str.lower().str.strip() != total_value.lower()].copy()
 
                 for scenario in self.scenarios:
-                    scenario_prefix = f'Y{year_or_scenario}_{scenario.replace("-", "")}'
+                    # MODIFIED: Use scenario directly to match CSV column names (e.g., 'NO-BUILD')
+                    scenario_prefix = f'Y{year_or_scenario}_{scenario}' 
                     
                     if not system_df_raw.empty:
                         for mode in modes:
                             col_name = f'{scenario_prefix}_{mode}'
+                            # --- Debugging for XFR in 9.01 ---
+                            if "9_01" in file_path and mode == 'XFR':
+                                print(f"    Checking for column: '{col_name}' for XFR in 9.01")
+                                if col_name in system_df_raw.columns:
+                                    xfr_value = system_df_raw[col_name].iloc[0]
+                                    print(f"      Found '{col_name}' with value: {xfr_value}")
+                                else:
+                                    print(f"      Column '{col_name}' NOT found in system_df_raw. Available columns: {system_df_raw.columns.tolist()}")
+                            # --- End Debugging ---
+
                             if col_name in system_df_raw.columns:
                                 system_level_data.append({
                                     'Year': year_or_scenario,
