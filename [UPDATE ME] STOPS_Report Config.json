@@ -4,7 +4,9 @@
     "CONDUCT_REPORT_GENERATION": true
   },
   "prn_files_folderpath": "source_files/prn_reports",
-  "prn_files_data_extraction_config": { 
+  "csv_output_folderpath": "extracted_csv_tables",
+  "report_output_folderpath": "summary_report",
+  "prn_files_data_extraction_config": {
     "files_to_process": [
       {
         "alias": "2024",
@@ -15,58 +17,40 @@
         "alias": "2050",
         "filename": "Y2050_STOPS.PRN",
         "is_full_folderpath": false
-      },
-      {
-        "alias": "brstops_skims_1_type0",
-        "filename": "brstops_skims_1_type0.prn",
-        "is_full_folderpath": true,
-        "folderpath":"J:\\Shared drives\\TMD_TSA\\Projects\\STOPS\\Scenarios\\ModelVersion-0.2-UpdateScenarios\\[skim_update_scenarios]\\brstops_skims_1_type0\\Reports"
-      },
-      {
-        "alias": "brstops_skims_2_type0",
-        "filename": "brstops_skims_2_type0.prn",
-        "is_full_folderpath": true,
-        "folderpath":"J:\\Shared drives\\TMD_TSA\\Projects\\STOPS\\Scenarios\\ModelVersion-0.2-UpdateScenarios\\[skim_update_scenarios]\\brstops_skims_2_type0\\Reports"
       }
     ],
     "tables_to_extract": [
-      {
-        "table_name": "9.01",
-        "method_name": "extract_table_9_01"
-      },
-      {
-        "table_name": "10.01",
-        "method_name": "extract_table_10_01"
-      },
-      {
-        "table_name": "11.01",
-        "method_name": "extract_table_11_01"
-      }
-    ],
+      "9.01",
+      "10.01",
+      "10.02",
+      "11.01",
+      "11.02",
+      "11.03",
+      "11.04"
+    ]
   },
-  "csv_output_folderpath": "extracted_csv_tables",
-  "report_output_folderpath": "summary_report",
-  
   "report_generation_data_config": {
-    "route_level_comparison": {
-        [
-            "output_csv_name": "rapid_transit_comparison_output.csv",
-            "table": 10.01,
-            "rows": [
-                "Blue&T", "Green-B&T", "Green-C&T", "Green-D&T", "Green-E&T",
-            "Mattapan&T", "Orange&T", "Red&T"
-            ]
-            ],
-        [
-            "output_csv_name": "commuter_rail_comparison_output.csv",
-            "table": 10.01,
-            "rows": [
- "CR-Fairmount&T", "CR-Fitchburg&T", "CR-Franklin&T", "CR-Greenbush&T",
-        "CR-Haverhill&T", "CR-Kingston&T", "CR-Lowell&T", "CR-Middleborough&T",
-        "CR-Needham&T", "CR-Newburyport&T", "CR-Providence&T", "CR-Worcester&T",
-        "CR: FALL River&T"
-            ]
-            ]
-        }
-    }
+    "route_level_comparison": [
+      {
+        "output_filename": "rapid_transit_comparison.csv",
+        "source_table_id": "10.01",
+        "row_filter_column": "Route_ID",
+        "rows_to_include": [
+          "Blue&T", "Green-B&T", "Green-C&T", "Green-D&T", "Green-E&T",
+          "Mattapan&T", "Orange&T", "Red&T"
+        ]
+      },
+      {
+        "output_filename": "commuter_rail_comparison.csv",
+        "source_table_id": "10.01",
+        "row_filter_column": "Route_ID",
+        "rows_to_include": [
+          "CR-Fairmount&T", "CR-Fitchburg&T", "CR-Franklin&T", "CR-Greenbush&T",
+          "CR-Haverhill&T", "CR-Kingston&T", "CR-Lowell&T", "CR-Middleborough&T",
+          "CR-Needham&T", "CR-Newburyport&T", "CR-Providence&T", "CR-Worcester&T",
+          "CR: FALL River&T"
+        ]
+      }
+    ]
+  }
 }
