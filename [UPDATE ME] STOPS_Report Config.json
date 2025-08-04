@@ -3,19 +3,19 @@
     "CONDUCT_DATA_EXTRACTION": true,
     "CONDUCT_REPORT_GENERATION": true
   },
-  "prn_files_folderpath": "source_files/prn_reports",
+  "prn_files_folderpath": "stops_prn_files",
   "csv_output_folderpath": "extracted_csv_tables",
   "report_output_folderpath": "summary_report",
   "prn_files_data_extraction_config": {
     "files_to_process": [
       {
         "alias": "2024",
-        "filename": "Y2024_STOPS.PRN",
+        "filename": "A2_MBTA-CATA-MWRTA-BATA-MVRTA#MBTA-CATA-MWRTA-BATA-MVRTA#MBTA-CATA-MWRTA-BATA-MVRTA_STOPSY2024Results.prn",
         "is_full_folderpath": false
       },
       {
         "alias": "2050",
-        "filename": "Y2050_STOPS.PRN",
+        "filename": "A2_MBTA-CATA-MWRTA-BATA-MVRTA#MBTA50-CATA-MWRTA-BATA-MVRTA#MBTA50-CATA-MWRTA-BATA-MVRTA_STOPSY2050Results.prn",
         "is_full_folderpath": false
       }
     ],

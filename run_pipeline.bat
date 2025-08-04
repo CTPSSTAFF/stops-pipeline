@@ -9,7 +9,7 @@ SET LOGFILE=debug_log.txt
 REM --- Start of Script ---
 CLS
 ECHO.
-ECHO ⚙️  Starting the data processing pipeline...
+ECHO   Starting the data processing pipeline...
 ECHO    Running %MAIN_SCRIPT%
 ECHO --------------------------------------------------
 
