@@ -93,89 +93,12 @@ class StopsPRNExtractor:
         return metadata
 
     @staticmethod
-    def _extract_table_10_01_from_prn(file_path, table_id, config):
-        """Specific extractor for Table 10.01 with dynamic year-based headers."""
-        metadata = {}
-        actual_data_lines = []
-        in_table_section = False
-        start_of_table_data = -1
-        header_line = None
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            return pd.DataFrame(), {}
-
-        for i, line in enumerate(lines):
-            if re.search(r"Table\s+" + re.escape(table_id), line):
-                in_table_section = True
-                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
-            
-            if in_table_section and start_of_table_data == -1:
-                if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
-                    header_line = line
-                    if re.search(r"Route_ID.*WLK.*KNR", lines[i+2]):
-                        if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
-                            start_of_table_data = i + 4
-                            break 
-
-        if start_of_table_data == -1 or header_line is None:
-            return pd.DataFrame(), metadata
-        
-        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = []
-        for m in main_headers:
-            header_text = m.group(1).strip()
-            generic_header_text = re.sub(r'^Y20\d\d\s+', '', header_text)
-            generic_name = generic_header_text.replace(' ', '_').replace('-', '_')
-            header_info.append({'name': generic_name, 'start': m.start()})
-        
-        colspecs = [(0, 20), (20, 56), (56, 65)]
-        names = ["Route_ID", "Route_Name", "Count"]
-
-        start_of_dynamic_columns = 65
-        for i, main_header in enumerate(header_info):
-            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "ALL"]):
-                col_start = start_of_dynamic_columns + (i * 40) + (j * 10)
-                col_end = col_start + 10
-                colspecs.append((col_start, col_end))
-                names.append(f"{main_header['name']}_{sub_header}")
-        
-        for line_to_collect in lines[start_of_table_data:]:
-            if "Total" in line_to_collect:
-                actual_data_lines.append(line_to_collect.rstrip())
-                break
-            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
-                break
-            if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
-                actual_data_lines.append(line_to_collect.rstrip())
-        
-        if not actual_data_lines:
-            return pd.DataFrame(), metadata
-        
-        data_for_df = io.StringIO('\n'.join(actual_data_lines))
-        df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
-
-        for col in df.columns:
-            if isinstance(df[col].dtype, object):
-                df[col] = df[col].str.strip()
-            if col not in ["Route_ID", "Route_Name"]:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-
-        if not df.empty and "Route_Name" in df.columns and pd.notna(df.iloc[-1]["Route_Name"]) and str(df.iloc[-1]["Route_Name"]).strip().lower() == "total":
-            df.at[df.index[-1], "Route_Name"] = "Total"
-            df.at[df.index[-1], "Route_ID"] = "Total"
-        return df, metadata
-
-    @staticmethod
     def _extract_table_9_01_from_prn(file_path, table_id, config):
-        """Specific extractor for Table 9.01 with dynamic year-based headers."""
+        """Extractor for Table 9.01. Uses column definitions from JSON config."""
         metadata = {}
         actual_data_lines = []
         in_table_section = False
         start_of_table_data = -1
-        header_line = None
         
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -189,36 +112,24 @@ class StopsPRNExtractor:
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
 
             if in_table_section and start_of_table_data == -1:
-                if re.search(r"Y20\d\d", line) and i + 2 < len(lines):
-                    header_line = line
-                    if re.search(r"Stop_id1.*WLK.*KNR", lines[i+2]):
-                        if i + 3 < len(lines) and re.search(r"^=+", lines[i+3]):
-                            start_of_table_data = i + 4
-                            break
+                if (re.search(r"Stop_id1.*WLK.*KNR", line) or re.search(r"Stop_id1", line)):
+                     if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
+                        start_of_table_data = i + 2
+                        break
+        if start_of_table_data == -1:
+             return pd.DataFrame(), metadata
 
-        if start_of_table_data == -1 or header_line is None:
+        # REFACTORED: Get column definitions from the JSON config
+        format_config = StopsPRNExtractor._get_table_format_config(config)
+        table_format = format_config.get(table_id)
+        try:
+            columns_def = table_format["columns"]
+            names = [col["name"] for col in columns_def]
+            widths = [col["width"] for col in columns_def]
+            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
+        except (KeyError, TypeError) as e:
+            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
             return pd.DataFrame(), metadata
-        
-        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = []
-        for m in main_headers:
-            header_text = m.group(1).strip()
-            generic_header_text = re.sub(r'^Y20\d\d\s+', '', header_text)
-            generic_name = generic_header_text.replace(' ', '_').replace('-', '_')
-            header_info.append({'name': generic_name, 'start': m.start()})
-        
-        colspecs = [(0, 26), (26, 47)]
-        names = ["Stop_id1", "Station_Name"]
-
-        start_of_dynamic_columns = 47
-        for i, main_header in enumerate(header_info):
-            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "XFR", "ALL"]):
-                col_start = start_of_dynamic_columns + (i * 51) + (j * 10) - (1 if j > 0 else 0)
-                col_end = col_start + 10
-                if j == 0:
-                    col_end += 1
-                colspecs.append((col_start, col_end))
-                names.append(f"{main_header['name']}_{sub_header}")
         
         for line_to_collect in lines[start_of_table_data:]:
             if "Total" in line_to_collect:
@@ -245,15 +156,82 @@ class StopsPRNExtractor:
             df.at[df.index[-1], "Station_Name"] = "Total"
             df.at[df.index[-1], "Stop_id1"] = "Total"
         return df, metadata
+    
+    @staticmethod
+    def _extract_table_10_01_from_prn(file_path, table_id, config):
+        """Extractor for Table 10.01. Uses column definitions from JSON config."""
+        metadata = {}
+        actual_data_lines = []
+        in_table_section = False
+        start_of_table_data = -1
         
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return pd.DataFrame(), {}
+
+        for i, line in enumerate(lines):
+            if re.search(r"Table\s+" + re.escape(table_id), line):
+                in_table_section = True
+                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
+            
+            if in_table_section and start_of_table_data == -1:
+                if (re.search(r"Route_ID.*WLK.*KNR", line) or re.search(r"Route_ID", line)):
+                    # Find the "====" separator line that follows the header
+                    if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
+                        start_of_table_data = i + 2
+                        break
+        
+        if start_of_table_data == -1:
+            return pd.DataFrame(), metadata
+        
+        # REFACTORED: Get column definitions from the JSON config
+        format_config = StopsPRNExtractor._get_table_format_config(config)
+        table_format = format_config.get(table_id)
+        try:
+            columns_def = table_format["columns"]
+            names = [col["name"] for col in columns_def]
+            widths = [col["width"] for col in columns_def]
+            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
+        except (KeyError, TypeError) as e:
+            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
+            return pd.DataFrame(), metadata
+        
+        for line_to_collect in lines[start_of_table_data:]:
+            if "Total" in line_to_collect:
+                actual_data_lines.append(line_to_collect.rstrip())
+                break
+            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+                break
+            if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
+                actual_data_lines.append(line_to_collect.rstrip())
+        
+        if not actual_data_lines:
+            return pd.DataFrame(), metadata
+        
+        data_for_df = io.StringIO('\n'.join(actual_data_lines))
+        df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
+
+        for col in df.columns:
+            if isinstance(df[col].dtype, object):
+                df[col] = df[col].str.strip()
+            # Infer which columns should be numeric based on name
+            if col not in ["Route_ID", "Route_Name", "Station_Name", "Stop_id1", "Group_Name", "HH_Cars", "Sub_mode", "Access_mode"]:
+                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+
+        if not df.empty and "Route_Name" in df.columns and pd.notna(df.iloc[-1]["Route_Name"]) and str(df.iloc[-1]["Route_Name"]).strip().lower() == "total":
+            df.at[df.index[-1], "Route_Name"] = "Total"
+            df.at[df.index[-1], "Route_ID"] = "Total"
+        return df, metadata
+
     @staticmethod
     def _extract_table_10_02_from_prn(file_path, table_id, config):
-        """Specific extractor for Table 10.02 with dynamic year-based headers."""
+        """Extractor for Table 10.02. Uses column definitions from JSON config and handles indented groups."""
         metadata = {}
         all_data_text = []
         in_table_section = False
         start_of_data = -1
-        header_line = None
         
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -267,40 +245,39 @@ class StopsPRNExtractor:
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
             if in_table_section and start_of_data == -1:
-                if re.search(r"Y20\d\d", line):
-                    header_line = line
-                if header_line and re.search(r"Route_ID.*Count", line):
+                if re.search(r"Route_ID.*Count", line):
                     if i + 1 < len(lines) and re.search(r"^=+", lines[i + 1]):
                         start_of_data = i + 2
                         break
         
-        if start_of_data == -1 or header_line is None:
+        if start_of_data == -1:
+            return pd.DataFrame(), metadata
+        
+        # Get column definitions from the JSON config
+        format_config = StopsPRNExtractor._get_table_format_config(config)
+        table_format = format_config.get(table_id)
+        try:
+            columns_def = table_format["columns"]
+            names = [col["name"] for col in columns_def]
+            widths = [col["width"] for col in columns_def]
+            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
+        except (KeyError, TypeError) as e:
+            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
             return pd.DataFrame(), metadata
 
-        main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = []
-        for m in main_headers:
-            header_text = m.group(1).strip()
-            generic_header_text = re.sub(r'^Y20\d\d\s+', '', header_text)
-            generic_name = generic_header_text.replace(' ', '_').replace('-', '_')
-            header_info.append({'name': generic_name, 'start': m.start()})
-        
-        colspecs = [(0, 20), (20, 56), (56, 65)]
-        names = ["Route_ID", "Group_Name", "Count"]
-
-        start_of_dynamic_columns = 65
-        for i, main_header in enumerate(header_info):
-            for j, sub_header in enumerate(["WLK", "KNR", "PNR", "ALL"]):
-                col_start = start_of_dynamic_columns + (i * 40) + (j * 10)
-                col_end = col_start + 10
-                colspecs.append((col_start, col_end))
-                names.append(f"{main_header['name']}_{sub_header}")
-        
+        # MODIFIED: Robust data collection loop.
+        # This loop now reads until the next table begins and filters out junk lines.
         for line in lines[start_of_data:]:
+            # Stop processing ONLY if we hit the start of the next table or a new report page
             if re.search(r"Table\s+\d+\.\d+", line) or re.search(r"Program STOPS", line):
                 break
-            if line.strip() and not re.fullmatch(r"={2,}", line.strip()):
-                all_data_text.append(line)
+            
+            # Filter out empty lines and separator lines (e.g., '====' or '----')
+            stripped_line = line.strip()
+            if not stripped_line or re.fullmatch(r"[-=]{2,}", stripped_line):
+                continue
+
+            all_data_text.append(line)
         
         if not all_data_text:
             return pd.DataFrame(), metadata
@@ -308,6 +285,7 @@ class StopsPRNExtractor:
         data_io = io.StringIO('\n'.join(all_data_text))
         df = pd.read_fwf(data_io, colspecs=colspecs, header=None, names=names, dtype=str)
         
+        # Keep specialized cleanup logic for indented groups
         df["Route_ID"] = df["Route_ID"].str.strip().replace('', pd.NA).ffill()
         df['Route_Name'] = df['Group_Name'].apply(lambda x: x if pd.notna(x) and x.startswith('--') else pd.NA).ffill()
         df.loc[df['Group_Name'].str.startswith('--', na=False), 'Group_Name'] = pd.NA
@@ -320,12 +298,16 @@ class StopsPRNExtractor:
         df.loc[is_total_group_name, 'Group_Name'] = 'Total'
         df.loc[is_total_group_name, 'Route_Name'] = 'Total'
         
-        dynamic_cols = [name for name in names if name not in ["Route_ID", "Group_Name"]]
-        final_names_ordered = ["Route_ID", "Route_Name", "Group_Name"] + dynamic_cols
-        df = df[final_names_ordered]
+        # Reorder columns to ensure Route_Name is in the right place
+        if 'Route_Name' in df.columns:
+            static_cols = ["Route_ID", "Route_Name", "Group_Name"]
+            dynamic_cols = [name for name in names if name not in static_cols]
+            final_names_ordered = static_cols + dynamic_cols
+            df = df[[col for col in final_names_ordered if col in df.columns]]
         
-        for col in dynamic_cols:
-            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
+        for col in df.columns:
+            if col not in ["Route_ID", "Route_Name", "Group_Name"]:
+                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
 
         return df, metadata
 
@@ -396,18 +378,15 @@ class StopsPRNExtractor:
         sep_cols = [col for col in df.columns if col.startswith('_sep')]
         df = df.drop(columns=sep_cols)
 
-        if table_id.startswith('11.'):
-            df = df[~df['HH_Cars'].str.strip().str.startswith('. . .', na=False)].copy()
-            for col in df.columns:
-                if isinstance(df[col].dtype, object):
-                    df[col] = df[col].str.strip()
-                if col not in ["HH_Cars", "Sub_mode", "Access_mode"]:
-                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-            df['HH_Cars'] = df['HH_Cars'].mask(df['HH_Cars'].eq('')).ffill()
-            df['Sub_mode'] = df['Sub_mode'].mask(df['Sub_mode'].eq('')).ffill()
-        else:
-            for col in df.select_dtypes(['object']):
+        # Specialized cleanup for Table 11.XX
+        df = df[~df['HH_Cars'].str.strip().str.startswith('. . .', na=False)].copy()
+        for col in df.columns:
+            if isinstance(df[col].dtype, object):
                 df[col] = df[col].str.strip()
+            if col not in ["HH_Cars", "Sub_mode", "Access_mode"]:
+                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+        df['HH_Cars'] = df['HH_Cars'].mask(df['HH_Cars'].eq('')).ffill()
+        df['Sub_mode'] = df['Sub_mode'].mask(df['Sub_mode'].eq('')).ffill()
 
         return df, metadata
 
@@ -537,7 +516,6 @@ def get_extraction_method(table_id_str, config):
         return None
 
     try:
-        # Use getattr to get the method from the class by its string name
         extraction_func = getattr(StopsPRNExtractor, function_name)
         return extraction_func
     except AttributeError:
