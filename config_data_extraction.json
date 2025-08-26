@@ -1,6 +1,6 @@
 {
   "run_flags": {
-    "CONDUCT_DATA_EXTRACTION": false,
+    "CONDUCT_DATA_EXTRACTION": true,
     "INITIALIZE_FOLDERS": true
   },
   "prn_files_folderpath": "stops_prn_files",
@@ -25,8 +25,8 @@
       },
       {
         "alias": "example",
-        "filename": "example.prn",
-        "is_full_folderpath": false
+        "filename": "C:\\dev\\br-stops_dev\\Scripts\\stops_prn_files\\example.prn",
+        "is_full_folderpath": true
       }
     ],
     "tables_to_extract": {
