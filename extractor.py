@@ -677,7 +677,11 @@ class StopsPRNExtractor:
 
     @staticmethod
     def _extract_district_table(file_path, table_id, config):
-        """Extracts and pivots matrix-style 'District' tables."""
+        """
+        REVISED: Extracts and pivots matrix-style 'District' tables using manual parsing.
+        This version correctly handles the table's structure by separating the row
+        header from the numeric data, avoiding the errors caused by pd.read_csv.
+        """
         metadata = {}
         data_lines = []
         in_table_section = False
@@ -690,36 +694,64 @@ class StopsPRNExtractor:
         except FileNotFoundError:
             return pd.DataFrame(), {}
 
+        # 1. Find the start of the table, the header line, and the start of the data
         for i, line in enumerate(lines):
+            stripped_line = line.strip()
             if re.search(r"Table\s+" + re.escape(table_id), line):
                 in_table_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
-            if in_table_section and header_line is None and ("Idist" in line or "District" in line):
+            # FIX: Make header detection more specific. The header line must START with "Idist" or "District".
+            if in_table_section and header_line is None and (stripped_line.startswith("Idist")):
+            # if in_table_section and header_line is None and (stripped_line.startswith("Idist") or stripped_line.startswith("District")):
                 header_line = line
             
-            if header_line and re.search(r"^=+", line.strip()):
+            if header_line and re.search(r"^=+", stripped_line):
                 start_of_data = i + 1
                 break
         
         if start_of_data == -1 or header_line is None:
+            # Add a warning if the header was not found, which is a common failure point.
+            print(f"     - WARNING: Could not find a valid header row for Table {table_id}. Skipping.")
             return pd.DataFrame(), metadata
 
+        # 2. Parse the headers from the identified header line
         headers = header_line.strip().split()
-        if headers[0].lower() == 'idist' or headers[0].lower() == 'district':
-                headers[0] = "Origin_District"
+        if headers[0].lower() in ['idist', 'district']:
+            headers[0] = "Origin_District"
         
+        # 3. Collect the actual data lines, stopping at the "Total" summary row
         for line in lines[start_of_data:]:
-            if "Total" in line or not line.strip():
+            # The "Total" row signals the end of the main data matrix
+            if line.strip().startswith("Total") or not line.strip():
                 break
-            data_lines.append(line)
+            data_lines.append(line.strip())
             
         if not data_lines:
             return pd.DataFrame(), metadata
 
-        data_io = io.StringIO("\n".join(data_lines))
-        df = pd.read_csv(data_io, sep=r'\s+', header=None, names=headers, dtype=str, engine='python')
+        # 4. Manually parse each data row
+        parsed_rows = []
+        for line in data_lines:
+            parts = line.split()
+            if len(parts) > 1:
+                parsed_rows.append(parts)
+
+        if not parsed_rows:
+            return pd.DataFrame(), metadata
+
+        # 5. Create the DataFrame from the parsed rows and headers
+        # Ensure that the number of columns assigned matches the data
+        num_data_cols = len(parsed_rows[0])
+        # A safety check in case the header has more parts than the data rows
+        if len(headers) < num_data_cols:
+             print(f"     - WARNING: Mismatch in Table {table_id}. Header has {len(headers)} columns, data has {num_data_cols}. Truncating data.")
+             parsed_rows = [row[:len(headers)] for row in parsed_rows]
+             num_data_cols = len(headers)
+
+        df = pd.DataFrame(parsed_rows, columns=headers[:num_data_cols])
         
+        # 6. Convert data types
         for col in df.columns:
             if col != 'Origin_District':
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
@@ -729,7 +761,7 @@ class StopsPRNExtractor:
     @staticmethod
     def _extract_station_group_table(file_path, table_id, config):
         """
-        REFACTORED: Dynamically extracts various "Station Group" table formats.
+        Dynamically extracts various "Station Group" table formats.
         This version uses a robust manual parsing method based on content type
         (text vs. number) to correctly handle all table variations and summary columns.
         Table 2.04 has special handling to include its summary rows (TOTAL, GOAL, COUNT).

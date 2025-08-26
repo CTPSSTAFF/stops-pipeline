@@ -33,6 +33,7 @@
       "2.04": { "output_subfolder": "Table_2_04", "output_filename_template": "[{alias}]__2_04.csv" },
       "2.05": { "output_subfolder": "Table_2_05", "output_filename_template": "[{alias}]__2_05.csv" },
       "4.01": { "output_subfolder": "Table_4_01", "output_filename_template": "[{alias}]__4_01.csv" },
+      "6.01": { "output_subfolder": "Table_6_01", "output_filename_template": "[{alias}]__6_01.csv" },
       "9.01": { "output_subfolder": "Table_9_01", "output_filename_template": "[{alias}]__9_01.csv" },
       "10.01": { "output_subfolder": "Table_10_01", "output_filename_template": "[{alias}]__10_01.csv" },
       "10.02": { "output_subfolder": "Table_10_02", "output_filename_template": "[{alias}]__10_02.csv" },
@@ -44,7 +45,18 @@
       "11.02": { "output_subfolder": "Table_11_02", "output_filename_template": "[{alias}]__11_02.csv" },
       "11.03": { "output_subfolder": "Table_11_03", "output_filename_template": "[{alias}]__11_03.csv" },
       "11.04": { "output_subfolder": "Table_11_04", "output_filename_template": "[{alias}]__11_04.csv" },
-      "12.01": { "output_subfolder": "Table_12_01", "output_filename_template": "[{alias}]__12_01.csv" }
+      "12.01": { "output_subfolder": "Table_12_01", "output_filename_template": "[{alias}]__12_01.csv" },
+      "13.01": { "output_subfolder": "Table_13_01", "output_filename_template": "[{alias}]__13_01.csv" },
+      "13.07": { "output_subfolder": "Table_13_07", "output_filename_template": "[{alias}]__13_07.csv" },
+      "13.08": { "output_subfolder": "Table_13_08", "output_filename_template": "[{alias}]__13_08.csv" },
+      "282.01": { "output_subfolder": "Table_282_01", "output_filename_template": "[{alias}]__282_01.csv" },
+      "333.01": { "output_subfolder": "Table_333_01", "output_filename_template": "[{alias}]__333_01.csv" },
+      "337.01": { "output_subfolder": "Table_337_01", "output_filename_template": "[{alias}]__337_01.csv" },
+      "341.01": { "output_subfolder": "Table_341_01", "output_filename_template": "[{alias}]__341_01.csv" },
+      "344.01": { "output_subfolder": "Table_344_01", "output_filename_template": "[{alias}]__344_01.csv" },
+      "345.01": { "output_subfolder": "Table_345_01", "output_filename_template": "[{alias}]__345_01.csv" },
+      "349.01": { "output_subfolder": "Table_349_01", "output_filename_template": "[{alias}]__349_01.csv" },
+      "350.01": { "output_subfolder": "Table_350_01", "output_filename_template": "[{alias}]__350_01.csv" }
     }
   }
 }
