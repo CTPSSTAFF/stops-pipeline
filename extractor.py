@@ -678,7 +678,7 @@ class StopsPRNExtractor:
     @staticmethod
     def _extract_district_table(file_path, table_id, config):
         """
-        Extracts and pivots matrix-style 'District' tables using manual parsing.
+        REVISED: Extracts and pivots matrix-style 'District' tables using manual parsing.
         This version correctly handles the table's structure by separating the row
         header from the numeric data, avoiding the errors caused by pd.read_csv.
         """
@@ -765,6 +765,7 @@ class StopsPRNExtractor:
         This version uses a robust manual parsing method based on content type
         (text vs. number) to correctly handle all table variations and summary columns.
         Table 2.04 has special handling to include its summary rows (TOTAL, GOAL, COUNT).
+        This version uses the numeric indices from the report as column headers and full text labels for rows.
         """
         metadata = {}
         in_table_section = False
@@ -790,9 +791,6 @@ class StopsPRNExtractor:
                     header_line_list.insert(0, lines[separator_index - 1])
                 if separator_index > 1:
                     prev_line = lines[separator_index - 2].strip()
-                    # FIX: The original check wrongly excluded lines with "Group", which prevented
-                    # the detection of a two-line header. This now correctly checks if the line
-                    # above the main header is also a text line.
                     if prev_line and not re.search(r"^=+", prev_line):
                         header_line_list.insert(0, lines[separator_index - 2])
                         is_two_line_header = True
@@ -805,38 +803,29 @@ class StopsPRNExtractor:
 
         # 2. PARSE HEADERS TO GET FULL LIST OF EXPECTED COLUMNS
         headers = []
+        # Use the numeric/summary header line as the source of truth for columns.
         if is_two_line_header:
-            # FIX: Reworked header parsing for two-line headers.
-            # Line 1 has numbers and summary words (e.g., 'Origin Group 1 2... TOTAL')
+            # This line is e.g., 'Origin Group 1 2 ... 40 TOTAL GOAL COUNT'
             h1_parts = header_line_list[0].strip().split()
-            # Line 2 has the actual column names (e.g., 'Bostn Maldn ...')
-            h2_parts = header_line_list[1].strip().split()
-
-            # The main data column headers are the text names from the second line.
-            headers.extend(h2_parts)
-
-            # Add any alphabetic summary columns from the end of the first header line.
-            summary_headers = [p for p in h1_parts if p.isalpha() and p.lower() not in ['origin', 'group']]
-            headers.extend(summary_headers)
+            headers = [p for p in h1_parts if p.lower() not in ['origin', 'group']]
         else:
-            # Single-line header case
-            # FIX: The original logic `parts[1:]` incorrectly sliced off the first header.
-            # This now correctly takes all words from the single header line.
-            headers = header_line_list[0].strip().split()
+            # Fallback for a single header line.
+            parts = header_line_list[0].strip().split()
+            if len(parts) > 2 and parts[0].lower() == 'origin' and parts[1].lower() == 'group':
+                 headers = parts[2:]
+            else:
+                 headers = parts
 
         # 3. MANUALLY PARSE DATA ROWS BASED ON CONTENT
         parsed_rows = []
         
-        # MODIFIED: Define the prefixes that signal the end of the data section.
-        stop_prefixes = ("2-WAY",) # Always a stop word
+        stop_prefixes = ("2-WAY",)
         if table_id != "2.04":
-            # For other tables, stop at the summary footer.
             stop_prefixes += ("TOTAL", "GOAL", "COUNT")
         
         for line in lines[start_of_data:]:
             stripped_line = line.strip()
             
-            # MODIFIED: Use the new stop_prefixes tuple and stop on new page headers.
             if not stripped_line or stripped_line.upper().startswith(stop_prefixes) or "Program STOPS" in line:
                 break
             
@@ -847,9 +836,6 @@ class StopsPRNExtractor:
             first_number_idx = -1
             for i, part in enumerate(parts):
                 try:
-                    # A simple check to find the boundary between text label and numeric data.
-                    # This will fail on text, colons, and hyphens, which is the desired behavior.
-                    # Added replace for commas.
                     float(part.replace(',', ''))
                     first_number_idx = i
                     break 
@@ -860,13 +846,12 @@ class StopsPRNExtractor:
                 origin_group_raw = " ".join(parts[:first_number_idx])
                 numbers = parts[first_number_idx:]
                 
-                # This regex cleans up labels like "1-Bostn :" to "Bostn"
-                # and also handles "TOTAL :" to "TOTAL"
-                origin_group = re.sub(r'^[\d\s-]*', '', origin_group_raw).replace(':', '').strip()
-                
-                # Only add rows that have a valid label.
-                if origin_group:
-                    parsed_rows.append([origin_group] + numbers)
+                # NEW LOGIC: Extract the full original label (e.g., '1-Bostn', '26-', 'TOTAL')
+                # by simply removing the trailing colon.
+                origin_label = origin_group_raw.replace(':', '').strip()
+
+                if origin_label:
+                    parsed_rows.append([origin_label] + numbers)
 
         if not parsed_rows:
             return pd.DataFrame(), metadata
@@ -891,7 +876,6 @@ class StopsPRNExtractor:
         # 6. CONVERT DATA TYPES AND CLEAN UP
         for col in df.columns:
             if col != 'Origin_Group':
-                # Replace placeholder hyphens before converting to numeric
                 df[col] = df[col].replace('-', pd.NA)
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
