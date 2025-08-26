@@ -680,7 +680,7 @@ class StopsPRNExtractor:
         """
         REVISED: Extracts and pivots matrix-style 'District' tables using manual parsing.
         This version correctly handles the table's structure by separating the row
-        header from the numeric data, avoiding the errors caused by pd.read_csv.
+        header from the numeric data and includes the final "Total" summary row.
         """
         metadata = {}
         data_lines = []
@@ -701,9 +701,8 @@ class StopsPRNExtractor:
                 in_table_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
-            # FIX: Make header detection more specific. The header line must START with "Idist" or "District".
-            if in_table_section and header_line is None and (stripped_line.startswith("Idist")):
-            # if in_table_section and header_line is None and (stripped_line.startswith("Idist") or stripped_line.startswith("District")):
+            # More specific header detection based on your feedback
+            if in_table_section and header_line is None and stripped_line.startswith("Idist"):
                 header_line = line
             
             if header_line and re.search(r"^=+", stripped_line):
@@ -711,7 +710,6 @@ class StopsPRNExtractor:
                 break
         
         if start_of_data == -1 or header_line is None:
-            # Add a warning if the header was not found, which is a common failure point.
             print(f"     - WARNING: Could not find a valid header row for Table {table_id}. Skipping.")
             return pd.DataFrame(), metadata
 
@@ -720,12 +718,17 @@ class StopsPRNExtractor:
         if headers[0].lower() in ['idist', 'district']:
             headers[0] = "Origin_District"
         
-        # 3. Collect the actual data lines, stopping at the "Total" summary row
+        # 3. Collect the actual data lines, now including the "Total" summary row
         for line in lines[start_of_data:]:
-            # The "Total" row signals the end of the main data matrix
-            if line.strip().startswith("Total") or not line.strip():
+            stripped_line = line.strip()
+            if not stripped_line:
                 break
-            data_lines.append(line.strip())
+            
+            data_lines.append(stripped_line)
+            
+            # FIX: Break AFTER appending the "Total" line to include it
+            if stripped_line.startswith("Total"):
+                break
             
         if not data_lines:
             return pd.DataFrame(), metadata
@@ -741,7 +744,6 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         # 5. Create the DataFrame from the parsed rows and headers
-        # Ensure that the number of columns assigned matches the data
         num_data_cols = len(parsed_rows[0])
         # A safety check in case the header has more parts than the data rows
         if len(headers) < num_data_cols:
