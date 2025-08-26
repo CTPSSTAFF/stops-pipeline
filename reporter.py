@@ -1,14 +1,15 @@
 import pandas as pd
 from pathlib import Path
+import re
 
 class ReportGenerator:
     def __init__(self, config):
         """Initializes the generator with settings from the config file."""
         self.config = config
-        self.csv_input_dir = Path(config["csv_output_folderpath"])
+        # UPDATED: Use the new, explicit input path key
+        self.csv_input_dir = Path(config["csv_input_folderpath"])
         self.report_output_dir = Path(config["report_output_folderpath"])
         self.report_output_dir.mkdir(parents=True, exist_ok=True)
-        self.files_info = config.get("prn_files_data_extraction_config", {}).get("files_to_process", [])
 
     def generate_reports_from_config(self):
         """Generates all reports defined in the config file."""
@@ -32,15 +33,21 @@ class ReportGenerator:
         
         all_data = []
         
-        for file_info in self.files_info:
-            alias = file_info["alias"]
-            table_folder_name = f"Table_{table_to_compare.replace('.', '_')}"
-            input_filename = f"[{alias}]__Table_{table_to_compare.replace('.', '_')}.csv"
-            csv_path = self.csv_input_dir / table_folder_name / input_filename
-            
-            if not csv_path.exists():
-                print(f"  - WARNING: Source CSV not found for alias '{alias}': {csv_path}. Skipping.")
+        # UPDATED: Scan for input files instead of using a predefined list
+        table_folder_name = f"Table_{table_to_compare.replace('.', '_')}"
+        table_folder_path = self.csv_input_dir / table_folder_name
+        
+        if not table_folder_path.exists():
+            print(f"  - WARNING: Input folder not found: {table_folder_path}. Skipping report.")
+            return
+
+        # Use glob to find all CSVs and extract the alias from the filename
+        for csv_path in table_folder_path.glob('[*]__*.csv'):
+            match = re.search(r"\[(.*?)\]", csv_path.name)
+            if not match:
+                print(f"  - WARNING: Could not extract alias from filename '{csv_path.name}'. Skipping.")
                 continue
+            alias = match.group(1)
             
             try:
                 df = pd.read_csv(csv_path)
@@ -51,6 +58,7 @@ class ReportGenerator:
                 filtered_df = df[df['Route_ID'].isin(route_ids)].copy()
                 filtered_df['alias'] = alias
                 all_data.append(filtered_df)
+                print(f"  - Processing data from alias '{alias}'...")
             except Exception as e:
                 print(f"  - ERROR: Could not process {csv_path}: {e}")
 

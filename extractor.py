@@ -516,8 +516,10 @@ class StopsPRNExtractor:
         # 2. Forward-fill the 'to_Route' columns to propagate their values down
         df['to_Route_ID'] = df['to_Route_ID'].str.strip().replace('', pd.NA)
         df['to_Route_Name'] = df['to_Route_Name'].str.strip().replace('', pd.NA)
-        df['to_Route_ID'].ffill(inplace=True)
-        df['to_Route_Name'].ffill(inplace=True)
+        
+        # FIX: Use reassignment to avoid FutureWarning and ensure operation works
+        df['to_Route_ID'] = df['to_Route_ID'].ffill()
+        df['to_Route_Name'] = df['to_Route_Name'].ffill()
 
         # 3. Drop any rows that are not real data (where from_Route_ID is empty)
         df.dropna(subset=['EXISTING_from_Route_ID'], inplace=True)
@@ -810,12 +812,12 @@ def run_extraction(config):
     print("--- 🎬 Starting Data Extraction ---")
     
     base_prn_dir = Path(config["prn_files_folderpath"])
-    csv_output_dir = Path(config["csv_output_folderpath"])
-    csv_output_dir.mkdir(parents=True, exist_ok=True)
+    extraction_config = config.get("prn_files_data_extraction_config", {})
     
-    extraction_config = config["prn_files_data_extraction_config"]
-    files_to_process = extraction_config["files_to_process"]
-    tables_to_extract = extraction_config["tables_to_extract"]
+    # REFACTORED: Read paths and table configs from their new locations
+    output_base_dir = Path(extraction_config.get("output_base_folder", "extracted_csv_tables"))
+    files_to_process = extraction_config.get("files_to_process", [])
+    tables_to_extract_config = extraction_config.get("tables_to_extract", {})
 
     for file_info in files_to_process:
         alias = file_info["alias"]
@@ -832,8 +834,8 @@ def run_extraction(config):
             
         print(f"\nProcessing File: '{file_path.name}' (Alias: '{alias}')")
 
-        for table_id in tables_to_extract:
-            table_id_str = str(table_id)
+        # REFACTORED: Loop through the table configuration dictionary
+        for table_id_str, output_config in tables_to_extract_config.items():
             print(f"  -> Attempting to extract Table {table_id_str}...")
             extraction_func = get_extraction_method(table_id_str, config)
             
@@ -847,10 +849,14 @@ def run_extraction(config):
                 print(f"       - No data found for Table {table_id_str} in this file.")
                 continue
 
-            table_folder_name = f"Table_{table_id_str.replace('.', '_')}"
-            table_output_dir = csv_output_dir / table_folder_name
+            # REFACTORED: Build output path from the config templates
+            subfolder = output_config.get("output_subfolder", f"Table_{table_id_str.replace('.', '_')}")
+            filename_template = output_config.get("output_filename_template", f"[{alias}]__{table_id_str}.csv")
+            
+            table_output_dir = output_base_dir / subfolder
             table_output_dir.mkdir(parents=True, exist_ok=True)
-            output_filename = f"[{alias}]__Table_{table_id_str.replace('.', '_')}.csv"
+            
+            output_filename = filename_template.format(alias=alias)
             output_path = table_output_dir / output_filename
 
             df.to_csv(output_path, index=False)
