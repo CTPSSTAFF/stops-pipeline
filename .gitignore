@@ -52,3 +52,4 @@ build/
 *.sav
 *.zip
 *.tar.gz
+stops_input_files/STOPSStations.dbf

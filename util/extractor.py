@@ -4,6 +4,60 @@ import re
 import os
 import json
 from pathlib import Path
+from simpledbf import Dbf5
+
+def _convert_dbf_files(config):
+    """
+    Handles the conversion of specified DBF files to CSV format based on the config.
+    It iterates through the 'files_to_convert' list in the extraction config,
+    reads each DBF file, and writes it to the designated CSV output path.
+    """
+    files_to_convert_config = config.get("files_to_convert")
+    if not files_to_convert_config:
+        print("ℹ️ No DBF files were specified for conversion. Skipping this step.")
+        return
+
+    print("\n--- 🗃️ Starting DBF to CSV Conversion ---")
+
+    # The configuration is a list of dictionaries, e.g., [{"stops_stations": {...}}]
+    for item in files_to_convert_config:
+        for task_name, paths in item.items():
+            try:
+                in_path_str = paths.get("in_file_path")
+                out_path_str = paths.get("out_file_name")
+
+                if not in_path_str or not out_path_str:
+                    print(f"❗️ WARNING: Incomplete configuration for DBF task '{task_name}'. Check 'in_file_path' and 'out_file_name'. Skipping.")
+                    continue
+
+                in_path = Path(in_path_str)
+                out_path = Path(out_path_str)
+
+                print(f"Processing DBF task '{task_name}':")
+                print(f"  -> Input: {in_path}")
+
+                if not in_path.exists():
+                    print(f"  ❗️ ERROR: Input file not found. Skipping task.")
+                    continue
+
+                # Ensure the output directory exists before writing the file
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Use simpledbf to load the DBF and convert it to a pandas DataFrame
+                dbf_data = Dbf5(str(in_path))
+                df = dbf_data.to_dataframe()
+
+                # Save the DataFrame to a CSV file
+                df.to_csv(out_path, index=False, encoding='utf-8')
+                print(f"  ✅ Successfully converted and saved to: {out_path}")
+
+            except Exception as e:
+                print(f"  ❌ FATAL ERROR during DBF conversion for task '{task_name}': {e}")
+                # Depending on desired behavior, you could re-raise the exception
+                # or use `sys.exit(1)` to halt the entire pipeline on failure.
+
+    print("--- ✅ DBF to CSV Conversion Complete ---")
+
 
 class StopsPRNExtractor:
     """
@@ -835,6 +889,10 @@ def run_extraction(config):
     """Main function to run the data extraction process from config."""
     print("--- 🎬 Starting Data Extraction ---")
     
+    # --- NEW: Handle DBF to CSV Conversion First ---
+    _convert_dbf_files(config)
+    
+    print("\n--- 📠 Starting PRN to CSV Extraction ---")
     base_prn_dir = Path(config["prn_files_folderpath"])
     output_base_dir = Path(config.get("output_base_folder", "extracted_csv_tables"))
     
@@ -845,7 +903,7 @@ def run_extraction(config):
 
     # NEW: Check if the aliases_to_extract list is provided and is not empty.
     if not aliases_to_extract:
-        print("❗️ WARNING: 'aliases_to_extract' is not defined or is empty in the configuration. Halting extraction.")
+        print("❗️ WARNING: 'aliases_to_extract' is not defined or is empty in the configuration. Halting PRN extraction.")
         return
     
     # NEW: Filter the list of all files to only include those specified in 'aliases_to_extract'.
@@ -854,14 +912,14 @@ def run_extraction(config):
         if file_info.get("alias") in aliases_to_extract
     ]
     
-    print(f"ℹ️  Filtering extraction for the following aliases: {aliases_to_extract}")
+    print(f"ℹ️  Filtering PRN extraction for the following aliases: {aliases_to_extract}")
 
     if not files_to_process:
-        print("❗️ WARNING: No files matching the 'aliases_to_extract' list were found in the data aliases configuration. Halting extraction.")
+        print("❗️ WARNING: No PRN files matching the 'aliases_to_extract' list were found in the data aliases configuration. Halting PRN extraction.")
         return
         
     if not tables_to_extract_config:
-        print("❗️ WARNING: No tables to extract were found in the configuration. Halting extraction.")
+        print("❗️ WARNING: No tables to extract were found in the configuration. Halting PRN extraction.")
         return
 
     # This loop now iterates over the filtered list of files.
@@ -887,13 +945,13 @@ def run_extraction(config):
             extraction_func = get_extraction_method(table_id_str, config)
             
             if not extraction_func:
-                print(f"               - No extraction method found for Table {table_id_str}. Skipping.")
+                print(f"                     - No extraction method found for Table {table_id_str}. Skipping.")
                 continue
 
             df, metadata = extraction_func(str(file_path), table_id_str, config)
             
             if df.empty:
-                print(f"               - No data found for Table {table_id_str} in this file.")
+                print(f"                     - No data found for Table {table_id_str} in this file.")
                 continue
 
             # Build output path from the config templates
@@ -907,6 +965,6 @@ def run_extraction(config):
             output_path = table_output_dir / output_filename
 
             df.to_csv(output_path, index=False)
-            print(f"               ✅ Successfully saved to: {output_path}")
+            print(f"                     ✅ Successfully saved to: {output_path}")
 
     print("\n--- ✅ Data Extraction Complete ---")
