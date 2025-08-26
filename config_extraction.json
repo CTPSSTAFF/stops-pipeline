@@ -40,7 +40,6 @@
       "10.03": { "output_subfolder": "Table_10_03", "output_filename_template": "[{alias}]__10_03.csv" },
       "10.04": { "output_subfolder": "Table_10_04", "output_filename_template": "[{alias}]__10_04.csv" },
       "10.05": { "output_subfolder": "Table_10_05", "output_filename_template": "[{alias}]__10_05.csv" },
-      "10.06": { "output_subfolder": "Table_10_06", "output_filename_template": "[{alias}]__10_06.csv" },
       "11.01": { "output_subfolder": "Table_11_01", "output_filename_template": "[{alias}]__11_01.csv" },
       "11.02": { "output_subfolder": "Table_11_02", "output_filename_template": "[{alias}]__11_02.csv" },
       "11.03": { "output_subfolder": "Table_11_03", "output_filename_template": "[{alias}]__11_03.csv" },

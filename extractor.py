@@ -310,7 +310,7 @@ class StopsPRNExtractor:
                 df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
 
         return df, metadata
-
+    
     @staticmethod
     def _extract_table_10_03_04_from_prn(file_path, table_id, config):
         """Extractor for Tables 10.03 & 10.04. Uses column definitions from JSON config."""
@@ -365,9 +365,6 @@ class StopsPRNExtractor:
         data_for_df = io.StringIO('\n'.join(actual_data_lines))
         # FIX: Read all columns as strings first to prevent dtype inference errors.
         df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
-
-        if "Route_Name" in df.columns:
-            df['Route_Name'] = df['Route_Name'].str.lstrip(' -')
 
         # FIX: Robustly clean and convert data types after ensuring all are strings.
         for col in df.columns:
@@ -439,9 +436,6 @@ class StopsPRNExtractor:
         # FIX: Read all columns as strings first to prevent dtype inference errors.
         df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
 
-        if "Route_Name" in df.columns:
-            df['Route_Name'] = df['Route_Name'].str.lstrip(' -')
-
         # FIX: Robustly clean and convert data types.
         for col in df.columns:
             if isinstance(df[col].dtype, object):
@@ -453,90 +447,6 @@ class StopsPRNExtractor:
             df.at[df.index[-1], "Route_Name"] = "Total"
             df.at[df.index[-1], "Route_ID"] = "Total"
         return df, metadata
-
-    @staticmethod
-    def _extract_table_10_06_from_prn(file_path, table_id, config):
-        """
-        Custom extractor for Table 10.06 using a fixed-width read followed by
-        post-processing to handle its hierarchical structure.
-        """
-        metadata = {}
-        data_lines = []
-        in_table_section = False
-        start_of_data = -1
-
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            return pd.DataFrame(), {}
-
-        for i, line in enumerate(lines):
-            if re.search(r"Table\s+" + re.escape(table_id), line):
-                in_table_section = True
-                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
-            
-            if in_table_section and re.search(r"^=+", line):
-                start_of_data = i + 1
-                break
-        
-        if start_of_data == -1:
-            return pd.DataFrame(), metadata
-
-        # Collect all relevant lines from the table body
-        for line in lines[start_of_data:]:
-            if not line.strip() or "Total" in line or re.search(r"^\s*\.", line) or re.search(r"Table\s+\d+\.\d+", line):
-                break
-            data_lines.append(line)
-        
-        if not data_lines:
-            return pd.DataFrame(), metadata
-
-        # Get column definitions from the JSON config
-        format_config = StopsPRNExtractor._get_table_format_config(config)
-        table_format = format_config.get(table_id)
-        try:
-            columns_def = table_format["columns"]
-            names = [col["name"] for col in columns_def]
-            widths = [col["width"] for col in columns_def]
-            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
-        except (KeyError, TypeError) as e:
-            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
-            return pd.DataFrame(), metadata
-        
-        data_io = io.StringIO('\n'.join(data_lines))
-        df = pd.read_fwf(data_io, colspecs=colspecs, header=None, names=names, dtype=str)
-        
-        # --- Post-processing to handle the hierarchical structure ---
-        
-        # 1. Drop the separator columns
-        sep_cols = [col for col in df.columns if col.startswith('_sep')]
-        df.drop(columns=sep_cols, inplace=True)
-
-        # 2. Forward-fill the 'to_Route' columns to propagate their values down
-        df['to_Route_ID'] = df['to_Route_ID'].str.strip().replace('', pd.NA)
-        df['to_Route_Name'] = df['to_Route_Name'].str.strip().replace('', pd.NA)
-        
-        # FIX: Use reassignment to avoid FutureWarning and ensure operation works
-        df['to_Route_ID'] = df['to_Route_ID'].ffill()
-        df['to_Route_Name'] = df['to_Route_Name'].ffill()
-
-        # 3. Drop any rows that are not real data (where from_Route_ID is empty)
-        df.dropna(subset=['EXISTING_from_Route_ID'], inplace=True)
-        df = df[df['EXISTING_from_Route_ID'].str.strip() != ''].copy()
-
-        # 4. Clean up all columns: strip whitespace, fix names, and convert types
-        for col in df.columns:
-            if df[col].dtype == 'object':
-                df[col] = df[col].str.strip()
-                if 'Route_Name' in col:
-                    df[col] = df[col].str.lstrip(' -')
-            
-            if 'Transfers' in col:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-
-        return df, metadata
-
     @staticmethod
     def _extract_table_12_01_from_prn(file_path, table_id, config):
         """Extractor for Table 12.01. Uses column definitions from JSON config."""
