@@ -1,0 +1,10 @@
+{
+  "run_flags": {
+    "CONDUCT_DATA_EXTRACTION": true
+  },
+  "prn_files_folderpath": "stops_prn_files",
+  "output_base_folder": "extracted_csv_tables",
+  "prn_table_format_structure_configfile": "configurations/prn_table_format_structure.json",
+  "data_aliases_config_filepath": "configurations/config_data_aliases.json",
+  "data_tables_config_filepath": "configurations/config_data_tables.json"
+}

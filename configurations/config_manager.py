@@ -8,18 +8,16 @@ class ConfigManager:
     It centralizes the logic for reading JSON files and hydrating the main
     configuration with its sub-configurations.
     """
-    def __init__(self, extraction_path, reporting_path):
-        """
-        Initializes the manager with the paths to the primary config files.
+    # Define filepaths internally as class attributes
+    _EXTRACTION_CONFIG_PATH = Path("configurations/config_data_extract.json")
+    _REPORTING_CONFIG_PATH = Path("configurations/config_data_report.json")
 
-        Args:
-            extraction_path (str): Path to the data extraction config file.
-            reporting_path (str): Path to the report generation config file.
+    def __init__(self):
         """
-        self.extraction_config_path = Path(extraction_path)
-        self.reporting_config_path = Path(reporting_path)
-        self.extraction_config = None
-        self.reporting_config = None
+        Initializes the manager. Filepaths are now defined internally.
+        """
+        self.extraction_config_path = self._EXTRACTION_CONFIG_PATH
+        self.reporting_config_path = self._REPORTING_CONFIG_PATH
 
     def _load_json_file(self, file_path, description):
         """
@@ -55,7 +53,7 @@ class ConfigManager:
 
         print("Hydrating extraction configuration from linked files...")
 
-        # Load Aliases
+        # Load Aliases from the path specified *inside* the main extraction config
         aliases_path_str = self.extraction_config.get("data_aliases_config_filepath")
         if aliases_path_str:
             aliases_config = self._load_json_file(Path(aliases_path_str), "Data Aliases")
@@ -65,7 +63,7 @@ class ConfigManager:
         else:
             print("  - WARNING: 'data_aliases_config_filepath' not found in extraction config.")
 
-        # Load Tables
+        # Load Tables from the path specified *inside* the main extraction config
         tables_path_str = self.extraction_config.get("data_tables_config_filepath")
         if tables_path_str:
             tables_config = self._load_json_file(Path(tables_path_str), "Data Tables")

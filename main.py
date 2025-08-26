@@ -1,13 +1,10 @@
 import sys
 from pathlib import Path
 import shutil
-from config_manager import ConfigManager
-from extractor import run_extraction
-from reporter import run_reporting
+from configurations.config_manager import ConfigManager
+from util.extractor import run_extraction
+from util.reporter import run_reporting
 
-# Define paths to the primary configuration files
-EXTRACTION_CONFIG_FILE = "config_data_extraction.json"
-REPORTING_CONFIG_FILE = "config_data_report.json"
 
 def initialize_folders(ext_config, rpt_config):
     """
@@ -45,11 +42,8 @@ def main():
     print(f"Running {Path(__file__).name}")
     print("--------------------------------------------------")
 
-    # Instantiate the manager and load all configurations
-    config_manager = ConfigManager(
-        extraction_path=EXTRACTION_CONFIG_FILE,
-        reporting_path=REPORTING_CONFIG_FILE
-    )
+    # Instantiate the manager without parameters and load all configurations
+    config_manager = ConfigManager()
     config_manager.load_all()
 
     # Get the fully loaded and hydrated configuration objects
