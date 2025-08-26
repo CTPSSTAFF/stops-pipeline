@@ -26,14 +26,20 @@ class ReportGenerator:
             self.create_comparison_report(report_def)
 
     def create_comparison_report(self, report_def):
-        """Creates a single filtered and pivoted comparison report."""
+        """
+        Creates a single comparison report by filtering and pivoting data.
+        
+        This method reads data from multiple scenario CSVs, filters for specific
+        route_ids, and then transforms the data into a summary table where each
+        row is a metric and each column is a scenario, making for easy comparison.
+        """
         table_to_compare = report_def["table_to_compare"]
         route_ids = report_def["route_ids"]
         output_filename = report_def["output_filename"]
         
         all_data = []
         
-        # UPDATED: Scan for input files instead of using a predefined list
+        # Scan for input files instead of using a predefined list
         table_folder_name = f"Table_{table_to_compare.replace('.', '_')}"
         table_folder_path = self.csv_input_dir / table_folder_name
         
@@ -79,15 +85,32 @@ class ReportGenerator:
         value_cols = [col for col in combined_df.columns if col not in valid_index_cols + ['alias']]
         
         try:
-            pivot_df = combined_df.pivot_table(index=valid_index_cols, columns='alias', values=value_cols)
-            
-            # Flatten the MultiIndex columns for a clean CSV format
-            pivot_df.columns = [f"{val}_{col}" for val, col in pivot_df.columns]
-            pivot_df.reset_index(inplace=True)
-            
+            # 1. Melt the DataFrame to convert metrics from columns to rows (long format)
+            melted_df = combined_df.melt(
+                id_vars=valid_index_cols + ['alias'],
+                value_vars=value_cols,
+                var_name='Metric',
+                value_name='Value'
+            )
+
+            # 2. Pivot the melted data to create the final comparison table
+            #    Rows: Route ID, Route Name, Metric
+            #    Columns: Each scenario (alias)
+            final_report_df = melted_df.pivot_table(
+                index=valid_index_cols + ['Metric'],
+                columns='alias',
+                values='Value'
+            )
+
+            # 3. Clean up the DataFrame for a tidy CSV output
+            final_report_df.reset_index(inplace=True)
+            final_report_df.rename_axis(None, axis=1, inplace=True)
+
+            # 4. Save the final report
             output_path = self.report_output_dir / output_filename
-            pivot_df.to_csv(output_path, index=False)
+            final_report_df.to_csv(output_path, index=False)
             print(f"✅ Report saved successfully to: {output_path}")
+
         except Exception as e:
             print(f"  - ERROR: Failed to pivot and save report '{output_filename}'. Reason: {e}")
 

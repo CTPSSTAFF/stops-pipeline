@@ -3,7 +3,7 @@
         "CONDUCT_REPORT_GENERATION": true
     },
     "csv_input_folderpath": "extracted_csv_tables",
-    "report_output_folderpath": "summary_report",
+    "report_output_folderpath": "reporting_data",
     "route_level_comparison_reports": [
         {
             "output_filename": "rapid_transit_comparison.csv",
