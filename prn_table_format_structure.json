@@ -154,6 +154,24 @@
       { "name": "BUILD_Transfers", "width": 9 }
     ]
   },
+    {
+    "table_id": "12.01",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_12_01_from_prn",
+    "columns": [
+        { "name": "District", "width": 9 },
+        { "name": "CTPP_Workers_Y2015", "width": 9 },
+        { "name": "CTPP_Emplymnt_Y2015", "width": 9 },
+        { "name": "MPO_POP_CTPP_Y2015", "width": 9 },
+        { "name": "MPO_POP_Existing_2024", "width": 9 },
+        { "name": "MPO_POP_No-Build_2024", "width": 9 },
+        { "name": "MPO_POP_Build_2024", "width": 9 },
+        { "name": "MPO_EMP_CTPP_Y2015", "width": 9 },
+        { "name": "MPO_EMP_Existing_2024", "width": 9 },
+        { "name": "MPO_EMP_No-Build_2024", "width": 9 },
+        { "name": "MPO_EMP_Build_2024", "width": 8 }
+    ]
+  },
   {
     "table_id": "11.01",
     "format_type": "fixed_width",

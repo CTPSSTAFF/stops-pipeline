@@ -536,6 +536,65 @@ class StopsPRNExtractor:
         return df, metadata
 
     @staticmethod
+    def _extract_table_12_01_from_prn(file_path, table_id, config):
+        """Extractor for Table 12.01. Uses column definitions from JSON config."""
+        metadata = {}
+        actual_data_lines = []
+        in_table_section = False
+        start_of_table_data = -1
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return pd.DataFrame(), {}
+
+        for i, line in enumerate(lines):
+            if re.search(r"Table\s+" + re.escape(table_id), line):
+                in_table_section = True
+                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
+
+            if in_table_section and start_of_table_data == -1:
+                if (re.search(r"^={8,}", line)):
+                    start_of_table_data = i + 1
+                    break
+        if start_of_table_data == -1:
+             return pd.DataFrame(), metadata
+
+        format_config = StopsPRNExtractor._get_table_format_config(config)
+        table_format = format_config.get(table_id)
+        try:
+            columns_def = table_format["columns"]
+            names = [col["name"] for col in columns_def]
+            widths = [col["width"] for col in columns_def]
+            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
+        except (KeyError, TypeError) as e:
+            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
+            return pd.DataFrame(), metadata
+        
+        for line_to_collect in lines[start_of_table_data:]:
+            if line_to_collect.strip().startswith("Total"):
+                break
+            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+                break
+            if line_to_collect.strip():
+                actual_data_lines.append(line_to_collect.rstrip())
+        
+        if not actual_data_lines:
+            return pd.DataFrame(), metadata
+
+        data_for_df = io.StringIO('\n'.join(actual_data_lines))
+        df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
+
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                df[col] = df[col].str.strip()
+            if col not in ["District"]:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+        return df, metadata
+
+    @staticmethod
     def _extract_table_11_XX_from_prn(file_path, table_id, config):
         """
         A function to extract tables 11.XX based on fixed-width format

@@ -27,8 +27,8 @@
       },
       {
         "alias": "example",
-        "filename": "example.prn",
-        "is_full_folderpath": false
+        "filename": "C:\\dev\\br-stops_dev\\Scripts\\stops_prn_files\\example.prn",
+        "is_full_folderpath": true
       }
     ],
     "tables_to_extract": [
@@ -42,7 +42,8 @@
       "11.01",
       "11.02",
       "11.03",
-      "11.04"
+      "11.04",
+      "12.01"
     ]
   },
   "route_level_comparison_reports": [
