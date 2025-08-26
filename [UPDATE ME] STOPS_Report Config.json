@@ -1,9 +1,11 @@
 {
   "run_flags": {
     "CONDUCT_DATA_EXTRACTION": true,
-    "CONDUCT_REPORT_GENERATION": true
+    "CONDUCT_REPORT_GENERATION": true,
+    "INITIALIZE_FOLDERS": true
   },
   "prn_files_folderpath": "stops_prn_files",
+  "prn_table_format_structure_configfile": "prn_table_format_structure.json",
   "csv_output_folderpath": "extracted_csv_tables",
   "report_output_folderpath": "summary_report",
   "prn_files_data_extraction_config": {

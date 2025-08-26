@@ -1,0 +1,145 @@
+﻿[
+  {
+    "table_id": "9.01",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_9_01_from_prn",
+    "columns": [
+      { "name": "Stop_id1", "width": 26 },
+      { "name": "Station_Name", "width": 21 },
+      { "name": "EXISTING_WLK", "width": 11 },
+      { "name": "EXISTING_KNR", "width": 10 },
+      { "name": "EXISTING_PNR", "width": 10 },
+      { "name": "EXISTING_XFR", "width": 10 },
+      { "name": "EXISTING_ALL", "width": 10 },
+      { "name": "NO_BUILD_WLK", "width": 11 },
+      { "name": "NO_BUILD_KNR", "width": 10 },
+      { "name": "NO_BUILD_PNR", "width": 10 },
+      { "name": "NO_BUILD_XFR", "width": 10 },
+      { "name": "NO_BUILD_ALL", "width": 10 },
+      { "name": "BUILD_WLK", "width": 11 },
+      { "name": "BUILD_KNR", "width": 10 },
+      { "name": "BUILD_PNR", "width": 10 },
+      { "name": "BUILD_XFR", "width": 10 },
+      { "name": "BUILD_ALL", "width": 10 }
+    ]
+  },
+  {
+    "table_id": "10.01",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_10_01_from_prn",
+    "columns": [
+      { "name": "Route_ID", "width": 20 },
+      { "name": "Route_Name", "width": 36 },
+      { "name": "Count", "width": 9 },
+      { "name": "EXISTING_WLK", "width": 10 },
+      { "name": "EXISTING_KNR", "width": 10 },
+      { "name": "EXISTING_PNR", "width": 10 },
+      { "name": "EXISTING_ALL", "width": 10 },
+      { "name": "NO_BUILD_WLK", "width": 10 },
+      { "name": "NO_BUILD_KNR", "width": 10 },
+      { "name": "NO_BUILD_PNR", "width": 10 },
+      { "name": "NO_BUILD_ALL", "width": 10 },
+      { "name": "BUILD_WLK", "width": 10 },
+      { "name": "BUILD_KNR", "width": 10 },
+      { "name": "BUILD_PNR", "width": 10 },
+      { "name": "BUILD_ALL", "width": 10 }
+    ]
+  },
+  {
+    "table_id": "10.02",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_10_02_from_prn",
+    "columns": [
+      { "name": "Route_ID", "width": 20 },
+      { "name": "Group_Name", "width": 36 },
+      { "name": "Count", "width": 9 },
+      { "name": "EXISTING_WLK", "width": 10 },
+      { "name": "EXISTING_KNR", "width": 10 },
+      { "name": "EXISTING_PNR", "width": 10 },
+      { "name": "EXISTING_ALL", "width": 10 },
+      { "name": "NO_BUILD_WLK", "width": 10 },
+      { "name": "NO_BUILD_KNR", "width": 10 },
+      { "name": "NO_BUILD_PNR", "width": 10 },
+      { "name": "NO_BUILD_ALL", "width": 10 },
+      { "name": "BUILD_WLK", "width": 10 },
+      { "name": "BUILD_KNR", "width": 10 },
+      { "name": "BUILD_PNR", "width": 10 },
+      { "name": "BUILD_ALL", "width": 10 }
+    ]
+  },
+  {
+    "table_id": "11.01",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_11_XX_from_prn",
+    "columns": [
+      { "name": "HH_Cars", "width": 9 }, { "name": "Sub_mode", "width": 20 },
+      { "name": "Access_mode", "width": 12 }, { "name": "_sep1", "width": 1 },
+      { "name": "EXISTING_Model", "width": 8 }, { "name": "EXISTING_Survey", "width": 8 },
+      { "name": "_sep2", "width": 1 }, { "name": "NO_BUILD_Model", "width": 8 },
+      { "name": "NO_BUILD_Survey", "width": 8 }, { "name": "_sep3", "width": 1 },
+      { "name": "BUILD_Model", "width": 8 }, { "name": "BUILD_Survey", "width": 8 },
+      { "name": "_sep4", "width": 1 }, { "name": "BUILD_Project_Model", "width": 8 },
+      { "name": "BUILD_Project_Survey", "width": 8 }, { "name": "_sep5", "width": 1 }
+    ]
+  },
+  {
+    "table_id": "11.02",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_11_XX_from_prn",
+    "columns": [
+      { "name": "HH_Cars", "width": 9 }, { "name": "Sub_mode", "width": 20 },
+      { "name": "Access_mode", "width": 12 }, { "name": "_sep1", "width": 1 },
+      { "name": "EXISTING_Model", "width": 8 }, { "name": "EXISTING_Survey", "width": 8 },
+      { "name": "_sep2", "width": 1 }, { "name": "NO_BUILD_Model", "width": 8 },
+      { "name": "NO_BUILD_Survey", "width": 8 }, { "name": "_sep3", "width": 1 },
+      { "name": "BUILD_Model", "width": 8 }, { "name": "BUILD_Survey", "width": 8 },
+      { "name": "_sep4", "width": 1 }, { "name": "BUILD_Project_Model", "width": 8 },
+      { "name": "BUILD_Project_Survey", "width": 8 }, { "name": "_sep5", "width": 1 }
+    ]
+  },
+  {
+    "table_id": "11.03",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_11_XX_from_prn",
+    "columns": [
+      { "name": "HH_Cars", "width": 9 }, { "name": "Sub_mode", "width": 20 },
+      { "name": "Access_mode", "width": 12 }, { "name": "_sep1", "width": 1 },
+      { "name": "EXISTING_Model", "width": 8 }, { "name": "EXISTING_Survey", "width": 8 },
+      { "name": "_sep2", "width": 1 }, { "name": "NO_BUILD_Model", "width": 8 },
+      { "name": "NO_BUILD_Survey", "width": 8 }, { "name": "_sep3", "width": 1 },
+      { "name": "BUILD_Model", "width": 8 }, { "name": "BUILD_Survey", "width": 8 },
+      { "name": "_sep4", "width": 1 }, { "name": "BUILD_Project_Model", "width": 8 },
+      { "name": "BUILD_Project_Survey", "width": 8 }, { "name": "_sep5", "width": 1 }
+    ]
+  },
+  {
+    "table_id": "11.04",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_11_XX_from_prn",
+    "columns": [
+      { "name": "HH_Cars", "width": 9 }, { "name": "Sub_mode", "width": 20 },
+      { "name": "Access_mode", "width": 12 }, { "name": "_sep1", "width": 1 },
+      { "name": "EXISTING_Model", "width": 8 }, { "name": "EXISTING_Survey", "width": 8 },
+      { "name": "_sep2", "width": 1 }, { "name": "NO_BUILD_Model", "width": 8 },
+      { "name": "NO_BUILD_Survey", "width": 8 }, { "name": "_sep3", "width": 1 },
+      { "name": "BUILD_Model", "width": 8 }, { "name": "BUILD_Survey", "width": 8 },
+      { "name": "_sep4", "width": 1 }, { "name": "BUILD_Project_Model", "width": 8 },
+      { "name": "BUILD_Project_Survey", "width": 8 }, { "name": "_sep5", "width": 1 }
+    ]
+  },
+  { "table_id": "4.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "6.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "13.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "13.07", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "13.08", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "345.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "344.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "282.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "2.04", "format_type": "Station Group", "extraction_function": "_extract_station_group_table" },
+  { "table_id": "2.05", "format_type": "Station Group", "extraction_function": "_extract_station_group_table" },
+  { "table_id": "333.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "337.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "341.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "349.01", "format_type": "District", "extraction_function": "_extract_district_table" },
+  { "table_id": "350.01", "format_type": "District", "extraction_function": "_extract_district_table" }
+]
