@@ -5,9 +5,9 @@
     "csv_input_folderpath": "extracted_csv_tables",
     "report_output_folderpath": "reporting_data",
     "aliases_to_include_in_report": [
-        "2024",
-        "2045",
-        "2050"
+        "Y2024",
+        "Y2045",
+        "Y2050"
     ],
     "data_query_reports": [
         {
