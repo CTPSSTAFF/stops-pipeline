@@ -1,87 +1,108 @@
+# util/reporter.py
+
 import pandas as pd
 import re
 from pathlib import Path
+import ast # Import the Abstract Syntax Tree module
+
+def _parse_simple_sql(sql_lines):
+    """
+    Parses the simple SQL-like query from the config file.
+    Extracts table ID and the WHERE clause.
+    """
+    full_query = " ".join(line.strip() for line in sql_lines if line.strip()).strip()
+
+    table_match = re.search(r"FROM\s+\[(.*?)\]", full_query, re.IGNORECASE)
+    if not table_match:
+        return None, None
+    table_id = table_match.group(1).replace('.', '_')
+
+    where_match = re.search(r"WHERE\s+(.*)", full_query, re.IGNORECASE)
+    where_clause = where_match.group(1).strip() if where_match else None
+    
+    print(f"  -> Parsed Table: '{table_id}', Filter: '{where_clause}'")
+    return table_id, where_clause
+
 
 def run_reporting(config_manager):
     """
-    Generates reports by executing configured SQL-like queries against CSV files.
+    Generates filtered CSV reports based on data_query_reports config.
     """
     print("\n--- 🚀 Starting Report Generation ---")
-
+    
     reporting_config = config_manager.reporting_config
-    if not reporting_config:
-        print("INFO: Reporting config not found. Skipping.")
-        return
+    base_input_path = Path(reporting_config["csv_input_folderpath"])
+    output_path = Path(reporting_config["report_output_folderpath"])
+    aliases = reporting_config["aliases_to_include_in_report"]
+    reports_to_generate = reporting_config["data_query_reports"]
 
-    # Get configuration details
-    input_base_path = Path(reporting_config.get("csv_input_folderpath", "extracted_csv_tables"))
-    output_base_path = Path(reporting_config.get("report_output_folderpath", "reporting_data"))
-    aliases = reporting_config.get("aliases_to_include_in_report", [])
-    reports_to_run = reporting_config.get("data_query_reports", [])
+    source_dataframes = {}
 
-    if not reports_to_run:
-        print("INFO: No data queries found in the report config.")
-        return
-
-    for report in reports_to_run:
-        output_filename = report.get("output_filename")
-        query_parts = report.get("sql_query", [])
-
-        # --- THIS IS THE CRITICAL CHANGE ---
-        # Join the potentially multi-line array from JSON into a single, clean string.
-        # The .strip() for each line handles leading/trailing whitespace.
-        full_sql_string = " ".join(line.strip() for line in query_parts)
-        # ------------------------------------
-
+    for report in reports_to_generate:
+        output_filename = report["output_filename"]
+        sql_query = report["sql_query"]
+        
         print(f"\nProcessing report: '{output_filename}'")
-        print(f"  SQL: {full_sql_string}")
+        print(f"  SQL: {' '.join(sql_query)}")
 
-        # Use regex to parse the table name and the WHERE clause from the query
-        match = re.search(r"FROM\s+\[(.*?)\](?:_?(WHERE\s+.*))?", full_sql_string, re.IGNORECASE)
-        if not match:
-            print(f"  ❌ ERROR: Could not parse table name from query: {full_sql_string}")
+        table_id, where_clause = _parse_simple_sql(sql_query)
+
+        if not table_id:
+            print(f"  ❌ ERROR: Could not parse table ID from query.")
             continue
 
-        table_id = match.group(1).replace('.', '_')
-        filter_condition = match.group(2)
-        print(f"  -> Parsed Table: '{table_id}', Columns: ['*'], Filter: '{filter_condition}'")
+        if table_id not in source_dataframes:
+            all_alias_dfs = []
+            for alias in aliases:
+                filename_template = f"[{alias}]__{table_id}.csv"
+                table_folder = f"Table_{table_id}"
+                file_path = base_input_path / table_folder / filename_template
 
-        combined_df = pd.DataFrame()
-
-        # Gather data from each alias's corresponding CSV file
-        for alias in aliases:
-            # Construct the path to the source CSV file
-            # e.g., extracted_csv_tables/Table_10_01/[2024]__10_01.csv
-            table_subfolder = f"Table_{table_id}"
-            csv_filename = f"[{alias}]__{table_id}.csv"
-            csv_path = input_base_path / table_subfolder / csv_filename
-
-            if not csv_path.is_file():
-                print(f"  ⚠️ WARNING: Input file not found for alias '{alias}': {csv_path}")
-                continue
-
-            try:
-                df = pd.read_csv(csv_path)
-                
-                # Apply the filter if one exists
-                if filter_condition:
-                    filtered_df = df.query(filter_condition.replace("WHERE ", "", 1))
+                if file_path.exists():
+                    df = pd.read_csv(file_path)
+                    df.insert(0, 'Alias', alias)
+                    all_alias_dfs.append(df)
                 else:
-                    filtered_df = df
+                    print(f"  ⚠️ WARNING: Source file not found at '{file_path}'")
+            
+            if not all_alias_dfs:
+                print(f"  ❌ ERROR: No source data found for table '{table_id}'. Skipping report.")
+                continue
+            
+            source_dataframes[table_id] = pd.concat(all_alias_dfs, ignore_index=True)
 
-                # Add the 'Alias' column to track the source
-                filtered_df.insert(0, 'Alias', alias)
-                combined_df = pd.concat([combined_df, filtered_df], ignore_index=True)
+        full_df = source_dataframes[table_id]
+        
+        # Apply the filter (WHERE clause)
+        if where_clause:
+            try:
+                # =================== FIX STARTS HERE ===================
+                # The .query() engine struggles with list literals inside the string.
+                # We will detect 'IN' clauses and handle them with the more robust .isin() method.
+                if ' in ' in where_clause.lower():
+                    # Split clause into column name and the list part
+                    # e.g., "Route_ID IN ['val1', 'val2']"
+                    col_name, values_str = re.split(r'\s+IN\s+', where_clause, maxsplit=1, flags=re.IGNORECASE)
+                    col_name = col_name.strip()
+                    
+                    # Safely evaluate the string representation of the list into a real Python list
+                    values_list = ast.literal_eval(values_str.strip())
+                    
+                    # Use the robust pandas isin() method for filtering
+                    filtered_df = full_df[full_df[col_name].isin(values_list)]
+                else:
+                    # For simple queries (like ==, >, <), .query() works fine.
+                    filtered_df = full_df.query(where_clause)
+                # =================== FIX ENDS HERE =====================
 
             except Exception as e:
-                print(f"  ❌ ERROR: Failed to process alias '{alias}' for table '{table_id}'. Reason: {e}")
-
-        # Save the combined data to the final report file
-        if not combined_df.empty:
-            output_filepath = output_base_path / output_filename
-            combined_df.to_csv(output_filepath, index=False)
-            print(f"  ✅ Successfully created report: '{output_filepath}' with {len(combined_df)} rows.")
+                print(f"  ❌ ERROR: Could not apply filter to DataFrame. Error: {e}")
+                continue
         else:
-            print(f"  - No data generated for report '{output_filename}'. File not created.")
+            filtered_df = full_df
+
+        output_filepath = output_path / output_filename
+        filtered_df.to_csv(output_filepath, index=False)
+        print(f"  ✅ Successfully created report: '{output_filepath}' with {len(filtered_df)} rows.")
 
     print("\n--- ✅ Report Generation Finished ---")
