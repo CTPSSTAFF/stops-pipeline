@@ -6,8 +6,8 @@ from extractor import run_extraction
 from reporter import run_reporting
 
 # UPDATED: Define paths to the two new config files
-EXTRACTION_CONFIG_FILE = Path("config_extraction.json")
-REPORTING_CONFIG_FILE = Path("config_reporting.json")
+EXTRACTION_CONFIG_FILE = Path("config_data_extraction.json")
+REPORTING_CONFIG_FILE = Path("config_data_report.json")
 
 def initialize_folders(ext_config, rpt_config):
     """

@@ -1,0 +1,49 @@
+{
+    "run_flags": {
+        "CONDUCT_REPORT_GENERATION": true
+    },
+    "csv_input_folderpath": "extracted_csv_tables",
+    "report_output_folderpath": "reporting_data",
+    "aliases_to_include_in_report": [
+        "2024",
+        "2045",
+        "example"
+    ],
+    "data_row_report": [
+        {
+            "output_filename": "rapid_transit_comparison.csv",
+            "table_to_compare": "10.01",
+            "column_to_compare": ["Route_ID"],
+            "values": [
+                [
+                    "Blue",
+                    "Green",
+                    "Mattapan",
+                    "Orange",
+                    "Red"
+                ]
+            ]
+        },
+        {
+            "output_filename": "commuter_rail_comparison.csv",
+            "table_to_compare": "10.01",
+            "column_to_compare": ["Route_ID"],
+            "values": [
+                [
+                    "Fairmount",
+                    "Fitchburg",
+                    "Franklin",
+                    "Greenbush",
+                    "Haverhill",
+                    "Kingston",
+                    "Lowell",
+                    "Middleborough",
+                    "Needham",
+                    "Newburyport",
+                    "Providence",
+                    "Worcester"
+                ]
+            ]
+        }
+    ]
+}
