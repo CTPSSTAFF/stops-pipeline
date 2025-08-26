@@ -130,7 +130,28 @@
       { "name": "PROJECT_KNR", "width": 10 },
       { "name": "PROJECT_PNR", "width": 10 },
       { "name": "PROJECT_XFR", "width": 10 },
-      { "name": "PROJECT_ALL", "width": 9 }
+      { "name": "PROJECT_ALL", "width": 10 }
+    ]
+  },
+  {
+    "table_id": "10.06",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_10_06_from_prn",
+    "columns": [
+      { "name": "to_Route_ID", "width": 24 },
+      { "name": "to_Route_Name", "width": 32 },
+      { "name": "_sep1", "width": 3 },
+      { "name": "EXISTING_from_Route_ID", "width": 24 },
+      { "name": "EXISTING_from_Route_Name", "width": 35 },
+      { "name": "EXISTING_Transfers", "width": 9 },
+      { "name": "_sep2", "width": 3 },
+      { "name": "NO_BUILD_from_Route_ID", "width": 24 },
+      { "name": "NO_BUILD_from_Route_Name", "width": 35 },
+      { "name": "NO_BUILD_Transfers", "width": 9 },
+      { "name": "_sep3", "width": 3 },
+      { "name": "BUILD_from_Route_ID", "width": 24 },
+      { "name": "BUILD_from_Route_Name", "width": 35 },
+      { "name": "BUILD_Transfers", "width": 9 }
     ]
   },
   {
