@@ -18,5 +18,20 @@
         "alias": "example",
                 "filename": "C:\\dev\\br-stops_dev\\Scripts\\stops_prn_files\\example.prn",
                 "is_full_folderpath": true
+    },
+    {
+        "alias": "se2019-skim1-type0",
+                "filename": "J:\\Shared drives\\TMD_TSA\\Projects\\STOPS\\Scenarios\\ModelVersion-0.2-UpdateScenarios\\Scenario Reports\\Reports--brstops_skims_1_type0\\brstops_skims_1_type0.prn",
+                "is_full_folderpath": true
+    },
+    {
+        "alias": "se2019-skim2-type0",
+                "filename": "J:\\Shared drives\\TMD_TSA\\Projects\\STOPS\\Scenarios\\ModelVersion-0.2-UpdateScenarios\\Scenario Reports\\Reports--brstops_skims_2_type0_SE2019\\brstops_skims_2_type0_SE2019.prn",
+                "is_full_folderpath": true
+    },
+    {
+        "alias": "se2024-skim2-type0",
+                "filename": "J:\\Shared drives\\TMD_TSA\\Projects\\STOPS\\Scenarios\\ModelVersion-0.2-UpdateScenarios\\Scenario Reports\\Reports--brstops_skims_2_type0_SE2024\\brstops_skims_2_type0_SE2024.prn",
+                "is_full_folderpath": true
     }
 ]
