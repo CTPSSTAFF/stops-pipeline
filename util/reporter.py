@@ -3,30 +3,11 @@
 import pandas as pd
 import re
 from pathlib import Path
-import ast # Import the Abstract Syntax Tree module
-
-def _parse_simple_sql(sql_lines):
-    """
-    Parses the simple SQL-like query from the config file.
-    Extracts table ID and the WHERE clause.
-    """
-    full_query = " ".join(line.strip() for line in sql_lines if line.strip()).strip()
-
-    table_match = re.search(r"FROM\s+\[(.*?)\]", full_query, re.IGNORECASE)
-    if not table_match:
-        return None, None
-    table_id = table_match.group(1).replace('.', '_')
-
-    where_match = re.search(r"WHERE\s+(.*)", full_query, re.IGNORECASE)
-    where_clause = where_match.group(1).strip() if where_match else None
-    
-    print(f"  -> Parsed Table: '{table_id}', Filter: '{where_clause}'")
-    return table_id, where_clause
-
+from pandasql import sqldf
 
 def run_reporting(config_manager):
     """
-    Generates filtered CSV reports based on data_query_reports config.
+    Generates filtered CSV reports using pandasql to execute queries.
     """
     print("\n--- 🚀 Starting Report Generation ---")
     
@@ -40,23 +21,26 @@ def run_reporting(config_manager):
 
     for report in reports_to_generate:
         output_filename = report["output_filename"]
-        sql_query = report["sql_query"]
+        sql_string = " ".join(line.strip() for line in report["sql_query"] if line.strip())
         
         print(f"\nProcessing report: '{output_filename}'")
-        print(f"  SQL: {' '.join(sql_query)}")
+        print(f"  SQL: {sql_string}")
 
-        table_id, where_clause = _parse_simple_sql(sql_query)
-
-        if not table_id:
-            print(f"  ❌ ERROR: Could not parse table ID from query.")
+        match = re.search(r"FROM\s+(\[.*?\])", sql_string, re.IGNORECASE)
+        
+        if not match:
+            print(f"  ❌ ERROR: Could not parse table ID from query: {sql_string}")
             continue
+            
+        original_table_specifier = match.group(1)
+        table_id = original_table_specifier.strip('[]').replace('.', '_')
 
         if table_id not in source_dataframes:
             all_alias_dfs = []
             for alias in aliases:
-                filename_template = f"[{alias}]__{table_id}.csv"
+                filename = f"[{alias}]__{table_id}.csv"
                 table_folder = f"Table_{table_id}"
-                file_path = base_input_path / table_folder / filename_template
+                file_path = base_input_path / table_folder / filename
 
                 if file_path.exists():
                     df = pd.read_csv(file_path)
@@ -66,43 +50,27 @@ def run_reporting(config_manager):
                     print(f"  ⚠️ WARNING: Source file not found at '{file_path}'")
             
             if not all_alias_dfs:
-                print(f"  ❌ ERROR: No source data found for table '{table_id}'. Skipping report.")
+                print(f"  ❌ ERROR: No source data for table '{table_id}'. Skipping report.")
                 continue
             
             source_dataframes[table_id] = pd.concat(all_alias_dfs, ignore_index=True)
 
-        full_df = source_dataframes[table_id]
-        
-        # Apply the filter (WHERE clause)
-        if where_clause:
-            try:
-                # =================== FIX STARTS HERE ===================
-                # The .query() engine struggles with list literals inside the string.
-                # We will detect 'IN' clauses and handle them with the more robust .isin() method.
-                if ' in ' in where_clause.lower():
-                    # Split clause into column name and the list part
-                    # e.g., "Route_ID IN ['val1', 'val2']"
-                    col_name, values_str = re.split(r'\s+IN\s+', where_clause, maxsplit=1, flags=re.IGNORECASE)
-                    col_name = col_name.strip()
-                    
-                    # Safely evaluate the string representation of the list into a real Python list
-                    values_list = ast.literal_eval(values_str.strip())
-                    
-                    # Use the robust pandas isin() method for filtering
-                    filtered_df = full_df[full_df[col_name].isin(values_list)]
-                else:
-                    # For simple queries (like ==, >, <), .query() works fine.
-                    filtered_df = full_df.query(where_clause)
-                # =================== FIX ENDS HERE =====================
+        dataframe_variable_name = f"Table_{table_id}"
+        globals()[dataframe_variable_name] = source_dataframes[table_id]
 
-            except Exception as e:
-                print(f"  ❌ ERROR: Could not apply filter to DataFrame. Error: {e}")
-                continue
-        else:
-            filtered_df = full_df
+        query_to_run = sql_string.replace(original_table_specifier, dataframe_variable_name)
 
-        output_filepath = output_path / output_filename
-        filtered_df.to_csv(output_filepath, index=False)
-        print(f"  ✅ Successfully created report: '{output_filepath}' with {len(filtered_df)} rows.")
+        query_to_run = re.sub(r'(\sIN\s*)\[(.*?)\]', r'\1(\2)', query_to_run, flags=re.IGNORECASE)
+
+        try:
+            filtered_df = sqldf(query_to_run, globals())
+            
+            output_filepath = output_path / output_filename
+            filtered_df.to_csv(output_filepath, index=False)
+            print(f"  ✅ Successfully created report: '{output_filepath}' with {len(filtered_df)} rows.")
+
+        except Exception as e:
+            print(f"  ❌ ERROR: SQL execution failed for '{output_filename}'. Error: {e}")
+            continue
 
     print("\n--- ✅ Report Generation Finished ---")

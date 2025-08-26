@@ -13,20 +13,20 @@
         {
             "output_filename": "rapid_transit_comparison.csv",
             "sql_query": [
-                "SELECT * FROM [10_01]",
+                "SELECT * FROM [10.01]",
                 "WHERE Route_ID IN ['Green-B&T', 'Green-C&T', 'Green-D&T', 'Green-E&T', 'Mattapan&T', 'Orange&T', 'Red&T', 'Blue&T']"
             ]
         },
         {
             "output_filename": "transit_totals.csv",
             "sql_query": [
-                "SELECT * FROM [10_01] WHERE Route_ID == 'Total'"
+                "SELECT * FROM [10.01] WHERE Route_ID == 'Total'"
             ]
         },
         {
             "output_filename": "commuter_rail_comparison.csv",
             "sql_query": [
-                "SELECT * FROM [10_01]",
+                "SELECT * FROM [10.01]",
                 "WHERE Route_ID IN [",
                 "    'CR-Fairmount&T', 'CR-Fitchburg&T', 'CR-Franklin&T', 'CR-Greenbush&T',",
                 "    'CR-Haverhill&T', 'CR-Kingston&T', 'CR-Lowell&T', 'CR-Middleborough&T',",
@@ -37,7 +37,7 @@
         {
             "output_filename": "11_01_households_walk.csv",
             "sql_query": [
-                "SELECT * FROM [11_01]"
+                "SELECT * FROM [11.01]"
             ]
         }
     ]
