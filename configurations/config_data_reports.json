@@ -151,6 +151,40 @@
                 ")",
                 "GROUP BY Alias, Green_Line_Branch"
             ]
+        },
+        {
+            "output_filename": "vehicle_availability_for_all_purpose_trip.csv",
+            "sql_query": [
+                "SELECT * FROM [11.04]"
+            ]
+        },
+        {
+            "output_filename": "vehicle_availability_for_non_home_based_trip.csv",
+            "sql_query": [
+                "SELECT * FROM [11.03]"
+            ]
+        },
+        {
+            "output_filename": "vehicle_availability_for_home_based_other_trip.csv",
+            "sql_query": [
+                "SELECT * FROM [11.02]"
+            ]
+        },
+        {
+            "output_filename": "vehicle_availability_for_home_based_work_trip.csv",
+            "sql_query": [
+                "SELECT * FROM [11.01]"
+            ]
+        },
+        {
+            "output_filename": "trip_purpose.csv",
+            "sql_query": [
+                "SELECT 'Home-Based Work' AS Trip_Purpose, * FROM [11.01] WHERE Sub_mode = 'All Fixed Guideway' AND HH_Cars = 'All car'",
+                "UNION ALL",
+                "SELECT 'Home-Based Other' AS Trip_Purpose, * FROM [11.02] WHERE Sub_mode = 'All Fixed Guideway' AND HH_Cars = 'All car'",
+                "UNION ALL",
+                "SELECT 'Non-Home-Based' AS Trip_Purpose, * FROM [11.03] WHERE Sub_mode = 'All Fixed Guideway' AND HH_Cars = 'All car'"
+            ]
         }
     ]
 }
