@@ -575,12 +575,19 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
         
         for line_to_collect in lines[start_of_table_data:]:
-            if line_to_collect.strip().startswith("Total"):
+            stripped_line = line_to_collect.strip()
+            
+            # The Total line is the end of the data. Append it, then stop.
+            if stripped_line.startswith("Total"):
+                actual_data_lines.append(stripped_line)
                 break
-            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+            
+            # Stop if we hit the next table or a page header
+            if re.search(r"Table\s+\d+\.\d+", stripped_line) or "Program STOPS" in stripped_line:
                 break
-            if line_to_collect.strip():
-                actual_data_lines.append(line_to_collect.rstrip())
+                
+            if stripped_line:
+                actual_data_lines.append(stripped_line)
         
         if not actual_data_lines:
             return pd.DataFrame(), metadata
