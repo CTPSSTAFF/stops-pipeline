@@ -1,151 +1,87 @@
 import pandas as pd
+import re
 from pathlib import Path
-import sys
-
-def _get_table_config_by_id(table_id, data_tables_config):
-    """
-    Finds the configuration for a specific table ID from the list of table configs.
-    
-    Args:
-        table_id (str): The ID of the table to find (e.g., "10.01").
-        data_tables_config (list): The list of table configuration dictionaries.
-
-    Returns:
-        dict: The matching table configuration dictionary, or None if not found.
-    """
-    for table_config in data_tables_config:
-        if table_config.get("table_id") == table_id:
-            return table_config
-    return None
 
 def run_reporting(config_manager):
     """
-    Generates summary reports by querying and combining data from multiple CSV files.
-
-    This function reads the reporting configuration to understand which reports to
-    create. For each report, it iterates through specified data aliases (e.g., "2024",
-    "2045"), reads the corresponding input CSV, filters it based on query
-    parameters, and combines the results into a single output CSV file.
+    Generates reports by executing configured SQL-like queries against CSV files.
     """
-    print("\n--- 📊 Starting Report Generation ---")
+    print("\n--- 🚀 Starting Report Generation ---")
 
-    # Get necessary configuration dictionaries from the manager
     reporting_config = config_manager.reporting_config
     if not reporting_config:
-        print("INFO: Reporting config not found. Skipping report generation.")
+        print("INFO: Reporting config not found. Skipping.")
         return
 
-    extraction_config = config_manager.extraction_config
-    if not extraction_config:
-        print("FATAL: Extraction config not found, cannot locate input CSVs for reporting.")
-        sys.exit(1)
+    # Get configuration details
+    input_base_path = Path(reporting_config.get("csv_input_folderpath", "extracted_csv_tables"))
+    output_base_path = Path(reporting_config.get("report_output_folderpath", "reporting_data"))
+    aliases = reporting_config.get("aliases_to_include_in_report", [])
+    reports_to_run = reporting_config.get("data_query_reports", [])
 
-    data_tables_config = extraction_config.get("tables_to_extract", [])
-    if not data_tables_config:
-        print("FATAL: Data tables configuration not found in extraction_config. Cannot proceed.")
-        sys.exit(1)
-        
-    # Get base paths and list of aliases to include
-    csv_input_base_path = Path(reporting_config.get("csv_input_folderpath", "extracted_csv_tables"))
-    report_output_base_path = Path(reporting_config.get("report_output_folderpath", "summary_reports"))
-    aliases_to_process = reporting_config.get("aliases_to_include_in_report", [])
-    reports_to_generate = reporting_config.get("data_query_reports", [])
-
-    if not aliases_to_process:
-        print("WARNING: 'aliases_to_include_in_report' is empty. No reports will be generated.")
-        return
-        
-    if not reports_to_generate:
-        print("INFO: 'data_query_reports' is empty or not defined. Nothing to report.")
+    if not reports_to_run:
+        print("INFO: No data queries found in the report config.")
         return
 
-    # Process each report defined in the configuration
-    for report_query in reports_to_generate:
-        table_to_compare = report_query.get("table_to_compare")
-        output_filename = report_query.get("output_filename")
-        columns_to_query = report_query.get("column_to_query", [])
-        values_to_find = report_query.get("values", [])
+    for report in reports_to_run:
+        output_filename = report.get("output_filename")
+        query_parts = report.get("sql_query", [])
 
-        if not all([table_to_compare, output_filename, columns_to_query, values_to_find]):
-            print("WARNING: Skipping a report due to missing configuration keys (e.g., table, output, column, or values).")
+        # --- THIS IS THE CRITICAL CHANGE ---
+        # Join the potentially multi-line array from JSON into a single, clean string.
+        # The .strip() for each line handles leading/trailing whitespace.
+        full_sql_string = " ".join(line.strip() for line in query_parts)
+        # ------------------------------------
+
+        print(f"\nProcessing report: '{output_filename}'")
+        print(f"  SQL: {full_sql_string}")
+
+        # Use regex to parse the table name and the WHERE clause from the query
+        match = re.search(r"FROM\s+\[(.*?)\](?:_?(WHERE\s+.*))?", full_sql_string, re.IGNORECASE)
+        if not match:
+            print(f"  ❌ ERROR: Could not parse table name from query: {full_sql_string}")
             continue
-            
-        print(f"\nProcessing report for table '{table_to_compare}' -> '{output_filename}'")
-        
-        # Find the configuration details for the table being processed
-        table_config = _get_table_config_by_id(table_to_compare, data_tables_config)
-        if not table_config:
-            print(f"  - ❌ ERROR: No configuration found for table_id '{table_to_compare}' in config_data_tables.json. Skipping.")
-            continue
-            
-        # Get the subfolder and filename template for the input CSVs
-        csv_subfolder = table_config.get("output_subfolder")
-        csv_filename_template = table_config.get("output_filename_template")
-        
-        if not all([csv_subfolder, csv_filename_template]):
-             print(f"  - ❌ ERROR: Table config for '{table_to_compare}' is missing 'output_subfolder' or 'output_filename_template'. Skipping.")
-             continue
 
-        all_data_for_report = []
+        table_id = match.group(1).replace('.', '_')
+        filter_condition = match.group(2)
+        print(f"  -> Parsed Table: '{table_id}', Columns: ['*'], Filter: '{filter_condition}'")
 
-        # Iterate through each specified alias (e.g., "2024", "2045", "example")
-        for alias in aliases_to_process:
-            filename = csv_filename_template.format(alias=alias)
-            input_csv_path = csv_input_base_path / csv_subfolder / filename
-            
-            print(f"  - Reading and filtering '{input_csv_path}'...")
+        combined_df = pd.DataFrame()
 
-            if not input_csv_path.is_file():
-                print("    - WARNING: File not found. Skipping this alias for the report.")
+        # Gather data from each alias's corresponding CSV file
+        for alias in aliases:
+            # Construct the path to the source CSV file
+            # e.g., extracted_csv_tables/Table_10_01/[2024]__10_01.csv
+            table_subfolder = f"Table_{table_id}"
+            csv_filename = f"[{alias}]__{table_id}.csv"
+            csv_path = input_base_path / table_subfolder / csv_filename
+
+            if not csv_path.is_file():
+                print(f"  ⚠️ WARNING: Input file not found for alias '{alias}': {csv_path}")
                 continue
 
             try:
-                # Load the source data
-                source_df = pd.read_csv(input_csv_path)
+                df = pd.read_csv(csv_path)
                 
-                # Apply the filter based on the query configuration
-                filtered_df = source_df.copy()
-                final_mask = pd.Series(True, index=filtered_df.index)
-                
-                for i, column in enumerate(columns_to_query):
-                    query_values = values_to_find[i]
-                    if column not in filtered_df.columns:
-                        print(f"    - WARNING: Column '{column}' not found in '{input_csv_path}'. Skipping this filter condition.")
-                        continue
-                    
-                    # Create a mask for the current condition using 'startswith' for flexibility
-                    # e.g., 'Green' will match 'Green-B', 'Green-C', etc.
-                    condition_mask = filtered_df[column].astype(str).str.startswith(tuple(query_values), na=False)
-                    final_mask &= condition_mask
-                    
-                filtered_df = filtered_df[final_mask]
+                # Apply the filter if one exists
+                if filter_condition:
+                    filtered_df = df.query(filter_condition.replace("WHERE ", "", 1))
+                else:
+                    filtered_df = df
 
-                if filtered_df.empty:
-                    print("    - INFO: No rows matched the query criteria in this file.")
-                    continue
-                
-                # Add an 'Alias' column to identify the data source in the final report
+                # Add the 'Alias' column to track the source
                 filtered_df.insert(0, 'Alias', alias)
-                
-                all_data_for_report.append(filtered_df)
+                combined_df = pd.concat([combined_df, filtered_df], ignore_index=True)
 
             except Exception as e:
-                print(f"    - ❌ ERROR: Failed to process file '{input_csv_path}'. Reason: {e}")
+                print(f"  ❌ ERROR: Failed to process alias '{alias}' for table '{table_id}'. Reason: {e}")
 
-        # Combine data from all aliases into one report file
-        if all_data_for_report:
-            final_report_df = pd.concat(all_data_for_report, ignore_index=True)
-            
-            # Construct the full output path for the report
-            output_path = report_output_base_path / output_filename
-            
-            # Ensure the parent directory exists
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Save the combined DataFrame to a new CSV
-            final_report_df.to_csv(output_path, index=False)
-            print(f"  - ✅ Report successfully generated at '{output_path}'")
+        # Save the combined data to the final report file
+        if not combined_df.empty:
+            output_filepath = output_base_path / output_filename
+            combined_df.to_csv(output_filepath, index=False)
+            print(f"  ✅ Successfully created report: '{output_filepath}' with {len(combined_df)} rows.")
         else:
-            print(f"  - INFO: No data found across all specified aliases for this report. No output file was created.")
+            print(f"  - No data generated for report '{output_filename}'. File not created.")
 
-    print("\n--- ✅ Report Generation Complete ---")
+    print("\n--- ✅ Report Generation Finished ---")
