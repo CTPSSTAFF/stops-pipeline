@@ -629,7 +629,7 @@ class StopsPRNExtractor:
         
         if start_of_data == -1 or header_line is None:
             # Add a warning if the header was not found, which is a common failure point.
-            print(f"      - WARNING: Could not find a valid header row for Table {table_id}. Skipping.")
+            print(f"       - WARNING: Could not find a valid header row for Table {table_id}. Skipping.")
             return pd.DataFrame(), metadata
 
         # 2. Parse the headers from the identified header line
@@ -669,7 +669,7 @@ class StopsPRNExtractor:
         num_data_cols = len(parsed_rows[0])
         # A safety check in case the header has more parts than the data rows
         if len(headers) < num_data_cols:
-             print(f"      - WARNING: Mismatch in Table {table_id}. Header has {len(headers)} columns, data has {num_data_cols}. Truncating data.")
+             print(f"       - WARNING: Mismatch in Table {table_id}. Header has {len(headers)} columns, data has {num_data_cols}. Truncating data.")
              parsed_rows = [row[:len(headers)] for row in parsed_rows]
              num_data_cols = len(headers)
 
@@ -790,7 +790,7 @@ class StopsPRNExtractor:
         num_cols_header = len(final_headers)
         
         if num_cols_data != num_cols_header:
-            print(f"      - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
+            print(f"       - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
             min_cols = min(num_cols_data, num_cols_header)
             df = df.iloc[:, :min_cols]
             df.columns = final_headers[:min_cols]
@@ -836,12 +836,17 @@ def run_extraction(config):
     print("--- 🎬 Starting Data Extraction ---")
     
     base_prn_dir = Path(config["prn_files_folderpath"])
-    extraction_config = config.get("prn_files_data_extraction_config", {})
     
-    # REFACTORED: Read paths and table configs from their new locations
-    output_base_dir = Path(extraction_config.get("output_base_folder", "extracted_csv_tables"))
-    files_to_process = extraction_config.get("files_to_process", [])
-    tables_to_extract_config = extraction_config.get("tables_to_extract", {})
+    output_base_dir = Path(config.get("output_base_folder", "extracted_csv_tables"))
+    files_to_process = config.get("files_to_process", [])
+    tables_to_extract_config = config.get("tables_to_extract", []) # MODIFIED: Expect a list
+
+    if not files_to_process:
+        print("❗️ WARNING: No files to process were found in the configuration. Halting extraction.")
+        return
+    if not tables_to_extract_config:
+        print("❗️ WARNING: No tables to extract were found in the configuration. Halting extraction.")
+        return
 
     for file_info in files_to_process:
         alias = file_info["alias"]
@@ -858,22 +863,23 @@ def run_extraction(config):
             
         print(f"\nProcessing File: '{file_path.name}' (Alias: '{alias}')")
 
-        # REFACTORED: Loop through the table configuration dictionary
-        for table_id_str, output_config in tables_to_extract_config.items():
+        # MODIFIED: Loop through the list of table configurations
+        for output_config in tables_to_extract_config:
+            table_id_str = output_config['table_id']
             print(f"  -> Attempting to extract Table {table_id_str}...")
             extraction_func = get_extraction_method(table_id_str, config)
             
             if not extraction_func:
-                print(f"          - No extraction method found for Table {table_id_str}. Skipping.")
+                print(f"           - No extraction method found for Table {table_id_str}. Skipping.")
                 continue
 
             df, metadata = extraction_func(str(file_path), table_id_str, config)
             
             if df.empty:
-                print(f"          - No data found for Table {table_id_str} in this file.")
+                print(f"           - No data found for Table {table_id_str} in this file.")
                 continue
 
-            # REFACTORED: Build output path from the config templates
+            # Build output path from the config templates
             subfolder = output_config.get("output_subfolder", f"Table_{table_id_str.replace('.', '_')}")
             filename_template = output_config.get("output_filename_template", f"[{alias}]__{table_id_str}.csv")
             
@@ -884,6 +890,6 @@ def run_extraction(config):
             output_path = table_output_dir / output_filename
 
             df.to_csv(output_path, index=False)
-            print(f"          ✅ Successfully saved to: {output_path}")
+            print(f"           ✅ Successfully saved to: {output_path}")
 
     print("\n--- ✅ Data Extraction Complete ---")

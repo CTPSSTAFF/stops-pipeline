@@ -1,13 +1,13 @@
-import json
 import sys
 from pathlib import Path
 import shutil
+from config_manager import ConfigManager
 from extractor import run_extraction
 from reporter import run_reporting
 
-# UPDATED: Define paths to the two new config files
-EXTRACTION_CONFIG_FILE = Path("config_data_extraction.json")
-REPORTING_CONFIG_FILE = Path("config_data_report.json")
+# Define paths to the primary configuration files
+EXTRACTION_CONFIG_FILE = "config_data_extraction.json"
+REPORTING_CONFIG_FILE = "config_data_report.json"
 
 def initialize_folders(ext_config, rpt_config):
     """
@@ -19,12 +19,11 @@ def initialize_folders(ext_config, rpt_config):
     folders_to_clean = []
     
     # Get extraction output folder path
-    extraction_settings = ext_config.get("prn_files_data_extraction_config", {})
-    csv_output_folder = Path(extraction_settings.get("output_base_folder", "extracted_csv_tables"))
+    csv_output_folder = Path(ext_config.get("output_base_folder", "extracted_csv_tables"))
     folders_to_clean.append(csv_output_folder)
 
     # Get report output folder path
-    report_output_folder = Path(rpt_config.get("report_output_folderpath", "summary_report"))
+    report_output_folder = Path(rpt_config.get("report_output_folderpath", "summary_reports"))
     folders_to_clean.append(report_output_folder)
 
     for folder in folders_to_clean:
@@ -38,34 +37,28 @@ def initialize_folders(ext_config, rpt_config):
     if folders_to_clean:
         print("Folder initialization complete.")
 
-def load_config(file_path, description):
-    """Helper function to load a JSON config file."""
-    if not file_path.is_file():
-        print(f"INFO: {description} file not found at '{file_path}'. Skipping related steps.")
-        return None
-    try:
-        with open(file_path, 'r') as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        print(f"❌ FATAL: '{file_path}' is not a valid JSON file.")
-        sys.exit(1)
-
 def main():
     """
-    Main pipeline wrapper. Reads configs and runs steps based on flags.
+    Main pipeline wrapper. Instantiates a ConfigManager and runs steps based on flags.
     """
     print("Starting the data processing pipeline...")
     print(f"Running {Path(__file__).name}")
     print("--------------------------------------------------")
 
-    # UPDATED: Load both configuration files
-    extraction_config = load_config(EXTRACTION_CONFIG_FILE, "Extraction config")
-    reporting_config = load_config(REPORTING_CONFIG_FILE, "Reporting config")
-    
+    # Instantiate the manager and load all configurations
+    config_manager = ConfigManager(
+        extraction_path=EXTRACTION_CONFIG_FILE,
+        reporting_path=REPORTING_CONFIG_FILE
+    )
+    config_manager.load_all()
+
+    # Get the fully loaded and hydrated configuration objects
+    extraction_config = config_manager.extraction_config
+    reporting_config = config_manager.reporting_config
+
     # --- Step 0: Initialization ---
-    # MODIFIED: Only initialize folders if CONDUCT_DATA_EXTRACTION is true.
     if extraction_config and extraction_config.get("run_flags", {}).get("CONDUCT_DATA_EXTRACTION", False):
-        print("Data extraction is enabled. Initializing folders for a clean run.")
+        print("\nData extraction is enabled. Initializing folders for a clean run.")
         if reporting_config:
             try:
                 initialize_folders(extraction_config, reporting_config)
@@ -77,9 +70,7 @@ def main():
         else:
             print("WARNING: Reporting config not found, cannot determine all paths. Skipping folder initialization.")
     else:
-        # If not extracting, we don't initialize, just print a status.
-        print("Folder initialization is skipped when not conducting a new data extraction.")
-
+        print("\nFolder initialization is skipped when not conducting a new data extraction.")
 
     print("--------------------------------------------------")
     
@@ -109,7 +100,6 @@ def main():
 
     print("\n🎉 Pipeline finished successfully!")
     print("--------------------------------------------------")
-
 
 if __name__ == "__main__":
     main()
