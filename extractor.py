@@ -113,9 +113,9 @@ class StopsPRNExtractor:
 
             if in_table_section and start_of_table_data == -1:
                 if (re.search(r"Stop_id1.*WLK.*KNR", line) or re.search(r"Stop_id1", line)):
-                     if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
-                         start_of_table_data = i + 2
-                         break
+                    if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
+                        start_of_table_data = i + 2
+                        break
         if start_of_table_data == -1:
              return pd.DataFrame(), metadata
 
@@ -576,7 +576,7 @@ class StopsPRNExtractor:
         
         for line_to_collect in lines[start_of_table_data:]:
             stripped_line = line_to_collect.strip()
-            
+
             # The Total line is the end of the data. Append it, then stop.
             if stripped_line.startswith("Total"):
                 actual_data_lines.append(stripped_line)
@@ -599,7 +599,7 @@ class StopsPRNExtractor:
             if df[col].dtype == 'object':
                 df[col] = df[col].str.strip()
             if col not in ["District"]:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(float)
 
         return df, metadata
 
@@ -768,10 +768,10 @@ class StopsPRNExtractor:
         # 6. Convert data types
         for col in df.columns:
             if col != 'Origin_District':
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(float)
 
         return df, metadata
-    
+
     @staticmethod
     def _extract_station_group_table(file_path, table_id, config):
         """
@@ -880,7 +880,7 @@ class StopsPRNExtractor:
         num_cols_header = len(final_headers)
         
         if num_cols_data != num_cols_header:
-            print(f"     - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
+            print(f"      - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
             min_cols = min(num_cols_data, num_cols_header)
             df = df.iloc[:, :min_cols]
             df.columns = final_headers[:min_cols]
@@ -954,13 +954,13 @@ def run_extraction(config):
             extraction_func = get_extraction_method(table_id_str, config)
             
             if not extraction_func:
-                print(f"       - No extraction method found for Table {table_id_str}. Skipping.")
+                print(f"          - No extraction method found for Table {table_id_str}. Skipping.")
                 continue
 
             df, metadata = extraction_func(str(file_path), table_id_str, config)
             
             if df.empty:
-                print(f"       - No data found for Table {table_id_str} in this file.")
+                print(f"          - No data found for Table {table_id_str} in this file.")
                 continue
 
             # REFACTORED: Build output path from the config templates
@@ -974,6 +974,6 @@ def run_extraction(config):
             output_path = table_output_dir / output_filename
 
             df.to_csv(output_path, index=False)
-            print(f"       ✅ Successfully saved to: {output_path}")
+            print(f"          ✅ Successfully saved to: {output_path}")
 
     print("\n--- ✅ Data Extraction Complete ---")
