@@ -114,8 +114,8 @@ class StopsPRNExtractor:
             if in_table_section and start_of_table_data == -1:
                 if (re.search(r"Stop_id1.*WLK.*KNR", line) or re.search(r"Stop_id1", line)):
                      if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
-                        start_of_table_data = i + 2
-                        break
+                         start_of_table_data = i + 2
+                         break
         if start_of_table_data == -1:
              return pd.DataFrame(), metadata
 
@@ -309,6 +309,149 @@ class StopsPRNExtractor:
             if col not in ["Route_ID", "Route_Name", "Group_Name"]:
                 df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
 
+        return df, metadata
+
+    @staticmethod
+    def _extract_table_10_03_04_from_prn(file_path, table_id, config):
+        """Extractor for Tables 10.03 & 10.04. Uses column definitions from JSON config."""
+        metadata = {}
+        actual_data_lines = []
+        in_table_section = False
+        start_of_table_data = -1
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return pd.DataFrame(), {}
+
+        for i, line in enumerate(lines):
+            if re.search(r"Table\s+" + re.escape(table_id), line):
+                in_table_section = True
+                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
+            
+            if in_table_section and start_of_table_data == -1:
+                if re.search(r"Route_ID.*Hours", line):
+                    if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
+                        start_of_table_data = i + 2
+                        break
+        
+        if start_of_table_data == -1:
+            return pd.DataFrame(), metadata
+        
+        format_config = StopsPRNExtractor._get_table_format_config(config)
+        table_format = format_config.get(table_id)
+        try:
+            columns_def = table_format["columns"]
+            names = [col["name"] for col in columns_def]
+            widths = [col["width"] for col in columns_def]
+            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
+        except (KeyError, TypeError) as e:
+            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
+            return pd.DataFrame(), metadata
+        
+        for line_to_collect in lines[start_of_table_data:]:
+            if "Total" in line_to_collect:
+                actual_data_lines.append(line_to_collect.rstrip())
+                break
+            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+                break
+            if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
+                actual_data_lines.append(line_to_collect.rstrip())
+        
+        if not actual_data_lines:
+            return pd.DataFrame(), metadata
+        
+        data_for_df = io.StringIO('\n'.join(actual_data_lines))
+        # FIX: Read all columns as strings first to prevent dtype inference errors.
+        df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
+
+        if "Route_Name" in df.columns:
+            df['Route_Name'] = df['Route_Name'].str.lstrip(' -')
+
+        # FIX: Robustly clean and convert data types after ensuring all are strings.
+        for col in df.columns:
+            df[col] = df[col].str.strip()
+            
+            if "Miles" in col or "Hours" in col:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            elif col not in ["Route_ID", "Route_Name"]:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+        if not df.empty and pd.notna(df.iloc[-1]["Route_Name"]) and str(df.iloc[-1]["Route_Name"]).strip().lower() == "total":
+            df.at[df.index[-1], "Route_Name"] = "Total"
+            df.at[df.index[-1], "Route_ID"] = "Total"
+        
+        return df, metadata
+
+    @staticmethod
+    def _extract_table_10_05_from_prn(file_path, table_id, config):
+        """Extractor for Table 10.05. Uses column definitions from JSON config."""
+        metadata = {}
+        actual_data_lines = []
+        in_table_section = False
+        start_of_table_data = -1
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return pd.DataFrame(), {}
+
+        for i, line in enumerate(lines):
+            if re.search(r"Table\s+" + re.escape(table_id), line):
+                in_table_section = True
+                metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
+            
+            if in_table_section and start_of_table_data == -1:
+                if re.search(r"Route_ID.*ALL", line):
+                    if i + 1 < len(lines) and re.search(r"^=+", lines[i+1]):
+                        start_of_table_data = i + 2
+                        break
+        
+        if start_of_table_data == -1:
+            return pd.DataFrame(), metadata
+        
+        format_config = StopsPRNExtractor._get_table_format_config(config)
+        table_format = format_config.get(table_id)
+        try:
+            columns_def = table_format["columns"]
+            names = [col["name"] for col in columns_def]
+            widths = [col["width"] for col in columns_def]
+            colspecs = StopsPRNExtractor._generate_colspecs_from_widths(widths)
+        except (KeyError, TypeError) as e:
+            print(f"ERROR: Invalid 'columns' format for Table {table_id} in JSON: {e}")
+            return pd.DataFrame(), metadata
+        
+        for line_to_collect in lines[start_of_table_data:]:
+            if "Total" in line_to_collect:
+                actual_data_lines.append(line_to_collect.rstrip())
+                break
+            if re.search(r"Table\s+\d+\.\d+", line_to_collect) or (line_to_collect.strip() and "Program STOPS" in line_to_collect):
+                break
+            if line_to_collect.strip() and not re.fullmatch(r"={2,}", line_to_collect.strip()) and not re.fullmatch(r"-{2,}", line_to_collect.strip()):
+                actual_data_lines.append(line_to_collect.rstrip())
+        
+        if not actual_data_lines:
+            return pd.DataFrame(), metadata
+        
+        data_for_df = io.StringIO('\n'.join(actual_data_lines))
+        # FIX: Read all columns as strings first to prevent dtype inference errors.
+        df = pd.read_fwf(data_for_df, colspecs=colspecs, header=None, names=names, dtype=str)
+
+        if "Route_Name" in df.columns:
+            df['Route_Name'] = df['Route_Name'].str.lstrip(' -')
+
+        # FIX: Robustly clean and convert data types.
+        for col in df.columns:
+            if isinstance(df[col].dtype, object):
+                df[col] = df[col].str.strip()
+            if col not in ["Route_ID", "Route_Name"]:
+                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+
+        if not df.empty and "Route_Name" in df.columns and pd.notna(df.iloc[-1]["Route_Name"]) and str(df.iloc[-1]["Route_Name"]).strip().lower() == "total":
+            df.at[df.index[-1], "Route_Name"] = "Total"
+            df.at[df.index[-1], "Route_ID"] = "Total"
         return df, metadata
 
     @staticmethod
@@ -555,13 +698,13 @@ def run_extraction(config):
             extraction_func = get_extraction_method(table_id_str, config)
             
             if not extraction_func:
-                print(f"     - No extraction method found for Table {table_id_str}. Skipping.")
+                print(f"       - No extraction method found for Table {table_id_str}. Skipping.")
                 continue
 
             df, metadata = extraction_func(str(file_path), table_id_str, config)
             
             if df.empty:
-                print(f"     - No data found for Table {table_id_str} in this file.")
+                print(f"       - No data found for Table {table_id_str} in this file.")
                 continue
 
             table_folder_name = f"Table_{table_id_str.replace('.', '_')}"
@@ -571,6 +714,6 @@ def run_extraction(config):
             output_path = table_output_dir / output_filename
 
             df.to_csv(output_path, index=False)
-            print(f"     ✅ Successfully saved to: {output_path}")
+            print(f"       ✅ Successfully saved to: {output_path}")
 
     print("\n--- ✅ Data Extraction Complete ---")

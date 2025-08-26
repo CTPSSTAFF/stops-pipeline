@@ -68,6 +68,72 @@
     ]
   },
   {
+    "table_id": "10.03",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_10_03_04_from_prn",
+    "columns": [
+      { "name": "Route_ID", "width": 24 },
+      { "name": "Route_Name", "width": 31 },
+      { "name": "EXISTING_Trips", "width": 7 },
+      { "name": "EXISTING_Miles", "width": 13 },
+      { "name": "EXISTING_Hours", "width": 13 },
+      { "name": "NO_BUILD_Trips", "width": 7 },
+      { "name": "NO_BUILD_Miles", "width": 13 },
+      { "name": "NO_BUILD_Hours", "width": 13 },
+      { "name": "BUILD_Trips", "width": 7 },
+      { "name": "BUILD_Miles", "width": 13 },
+      { "name": "BUILD_Hours", "width": 13 }
+    ]
+  },
+  {
+    "table_id": "10.04",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_10_03_04_from_prn",
+    "columns": [
+      { "name": "Route_ID", "width": 24 },
+      { "name": "Route_Name", "width": 31 },
+      { "name": "EXISTING_Trips", "width": 7 },
+      { "name": "EXISTING_Miles", "width": 13 },
+      { "name": "EXISTING_Hours", "width": 13 },
+      { "name": "NO_BUILD_Trips", "width": 7 },
+      { "name": "NO_BUILD_Miles", "width": 13 },
+      { "name": "NO_BUILD_Hours", "width": 13 },
+      { "name": "BUILD_Trips", "width": 7 },
+      { "name": "BUILD_Miles", "width": 13 },
+      { "name": "BUILD_Hours", "width": 13 }
+    ]
+  },
+  {
+    "table_id": "10.05",
+    "format_type": "fixed_width",
+    "extraction_function": "_extract_table_10_05_from_prn",
+    "columns": [
+      { "name": "Route_ID", "width": 24 },
+      { "name": "Route_Name", "width": 31 },
+      { "name": "Count", "width": 9 },
+      { "name": "EXISTING_WLK", "width": 10 },
+      { "name": "EXISTING_KNR", "width": 10 },
+      { "name": "EXISTING_PNR", "width": 10 },
+      { "name": "EXISTING_XFR", "width": 10 },
+      { "name": "EXISTING_ALL", "width": 10 },
+      { "name": "NO_BUILD_WLK", "width": 10 },
+      { "name": "NO_BUILD_KNR", "width": 10 },
+      { "name": "NO_BUILD_PNR", "width": 10 },
+      { "name": "NO_BUILD_XFR", "width": 10 },
+      { "name": "NO_BUILD_ALL", "width": 10 },
+      { "name": "BUILD_WLK", "width": 10 },
+      { "name": "BUILD_KNR", "width": 10 },
+      { "name": "BUILD_PNR", "width": 10 },
+      { "name": "BUILD_XFR", "width": 10 },
+      { "name": "BUILD_ALL", "width": 10 },
+      { "name": "PROJECT_WLK", "width": 10 },
+      { "name": "PROJECT_KNR", "width": 10 },
+      { "name": "PROJECT_PNR", "width": 10 },
+      { "name": "PROJECT_XFR", "width": 10 },
+      { "name": "PROJECT_ALL", "width": 9 }
+    ]
+  },
+  {
     "table_id": "11.01",
     "format_type": "fixed_width",
     "extraction_function": "_extract_table_11_XX_from_prn",
