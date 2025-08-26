@@ -732,6 +732,7 @@ class StopsPRNExtractor:
         REFACTORED: Dynamically extracts various "Station Group" table formats.
         This version uses a robust manual parsing method based on content type
         (text vs. number) to correctly handle all table variations and summary columns.
+        Table 2.04 has special handling to include its summary rows (TOTAL, GOAL, COUNT).
         """
         metadata = {}
         in_table_section = False
@@ -745,7 +746,7 @@ class StopsPRNExtractor:
         except FileNotFoundError:
             return pd.DataFrame(), {}
 
-        # 1. FIND HEADERS AND DATA START (same as before)
+        # 1. FIND HEADERS AND DATA START
         for i, line in enumerate(lines):
             if re.search(r"Table\s+" + re.escape(table_id), line):
                 in_table_section = True
@@ -780,17 +781,31 @@ class StopsPRNExtractor:
 
         # 3. MANUALLY PARSE DATA ROWS BASED ON CONTENT
         parsed_rows = []
+        
+        # MODIFIED: Define the prefixes that signal the end of the data section.
+        stop_prefixes = ("2-WAY",) # Always a stop word
+        if table_id != "2.04":
+            # For other tables, stop at the summary footer.
+            stop_prefixes += ("TOTAL", "GOAL", "COUNT")
+        
         for line in lines[start_of_data:]:
             stripped_line = line.strip()
-            if not stripped_line or stripped_line.upper().startswith(("TOTAL", "GOAL", "COUNT", "2-WAY")) or "Program STOPS" in line:
+            
+            # MODIFIED: Use the new stop_prefixes tuple and stop on new page headers.
+            if not stripped_line or stripped_line.upper().startswith(stop_prefixes) or "Program STOPS" in line:
                 break
             
             parts = stripped_line.split()
+            if not parts:
+                continue
             
             first_number_idx = -1
             for i, part in enumerate(parts):
                 try:
-                    float(part)
+                    # A simple check to find the boundary between text label and numeric data.
+                    # This will fail on text, colons, and hyphens, which is the desired behavior.
+                    # Added replace for commas.
+                    float(part.replace(',', ''))
                     first_number_idx = i
                     break 
                 except ValueError:
@@ -800,9 +815,13 @@ class StopsPRNExtractor:
                 origin_group_raw = " ".join(parts[:first_number_idx])
                 numbers = parts[first_number_idx:]
                 
+                # This regex cleans up labels like "1-Bostn :" to "Bostn"
+                # and also handles "TOTAL :" to "TOTAL"
                 origin_group = re.sub(r'^[\d\s-]*', '', origin_group_raw).replace(':', '').strip()
                 
-                parsed_rows.append([origin_group] + numbers)
+                # Only add rows that have a valid label.
+                if origin_group:
+                    parsed_rows.append([origin_group] + numbers)
 
         if not parsed_rows:
             return pd.DataFrame(), metadata
@@ -817,7 +836,7 @@ class StopsPRNExtractor:
         num_cols_header = len(final_headers)
         
         if num_cols_data != num_cols_header:
-            print(f"    - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
+            print(f"     - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
             min_cols = min(num_cols_data, num_cols_header)
             df = df.iloc[:, :min_cols]
             df.columns = final_headers[:min_cols]
@@ -827,6 +846,8 @@ class StopsPRNExtractor:
         # 6. CONVERT DATA TYPES AND CLEAN UP
         for col in df.columns:
             if col != 'Origin_Group':
+                # Replace placeholder hyphens before converting to numeric
+                df[col] = df[col].replace('-', pd.NA)
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
         df = df[df['Origin_Group'] != ''].reset_index(drop=True)

@@ -1,0 +1,2 @@
+C:\dev\br-stops_dev\Scripts\extractor.py:721: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(data_io, delim_whitespace=True, header=None, names=headers, dtype=str)
