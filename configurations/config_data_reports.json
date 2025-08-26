@@ -177,7 +177,7 @@
             ]
         },
         {
-            "output_filename": "trip_purpose.csv",
+            "output_filename": "all_vehicle_availability_trip_purpose.csv",
             "sql_query": [
                 "SELECT 'Home-Based Work' AS Trip_Purpose, * FROM [11.01] WHERE Sub_mode = 'All Fixed Guideway' AND HH_Cars = 'All car'",
                 "UNION ALL",
