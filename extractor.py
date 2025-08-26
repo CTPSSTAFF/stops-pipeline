@@ -13,6 +13,7 @@ class StopsPRNExtractor:
 
     @staticmethod
     def _extract_metadata_from_prn(lines, start_index):
+        # This function remains unchanged
         metadata = {}
         for meta_line_offset in range(1, 10):
             meta_line_num = start_index - meta_line_offset
@@ -55,8 +56,6 @@ class StopsPRNExtractor:
         actual_data_lines = []
         in_table_section = False
         start_of_table_data = -1
-        colspecs = []
-        names = []
         header_line = None
         
         try:
@@ -82,7 +81,14 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
         
         main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = [{'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()} for m in main_headers]
+        
+        # MODIFIED: Logic to create generic, year-agnostic column names
+        header_info = []
+        for m in main_headers:
+            header_text = m.group(1).strip()
+            generic_header_text = re.sub(r'^Y20\d\d\s+', '', header_text)
+            generic_name = generic_header_text.replace(' ', '_').replace('-', '_')
+            header_info.append({'name': generic_name, 'start': m.start()})
         
         colspecs = [(0, 20), (20, 56), (56, 65)]
         names = ["Route_ID", "Route_Name", "Count"]
@@ -159,7 +165,14 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
         
         main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = [{'name': m.group(1).strip().replace(' ', '_'), 'start': m.start()} for m in main_headers]
+        
+        # MODIFIED: Logic to create generic, year-agnostic column names
+        header_info = []
+        for m in main_headers:
+            header_text = m.group(1).strip()
+            generic_header_text = re.sub(r'^Y20\d\d\s+', '', header_text)
+            generic_name = generic_header_text.replace(' ', '_').replace('-', '_')
+            header_info.append({'name': generic_name, 'start': m.start()})
         
         colspecs = [(0, 26), (26, 47)]
         names = ["Stop_id1", "Station_Name"]
@@ -167,9 +180,9 @@ class StopsPRNExtractor:
         start_of_dynamic_columns = 47
         for i, main_header in enumerate(header_info):
             for j, sub_header in enumerate(["WLK", "KNR", "PNR", "XFR", "ALL"]):
-                col_start = start_of_dynamic_columns + (i * 51) + (j * 10) - (1 if j > 0 else 0) # Adjusted for spacing
+                col_start = start_of_dynamic_columns + (i * 51) + (j * 10) - (1 if j > 0 else 0)
                 col_end = col_start + 10
-                if j == 0: # WLK is wider
+                if j == 0:
                     col_end += 1
                 colspecs.append((col_start, col_end))
                 names.append(f"{main_header['name']}_{sub_header}")
@@ -206,7 +219,7 @@ class StopsPRNExtractor:
                     df.at[df.index[-1], "Station_Name"] = "Total"
                     df.at[df.index[-1], "Stop_id1"] = "Total"
         return df, metadata
-
+        
     @staticmethod
     def _extract_table_10_02_from_prn(file_path, table_id):
         metadata = {}
@@ -238,7 +251,14 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         main_headers = re.finditer(r"(Y20\d\d\s+[\w-]+)", header_line)
-        header_info = [{'name': re.sub(r'\s+', '_', m.group(1).strip()), 'start': m.start()} for m in main_headers]
+        
+        # MODIFIED: Logic to create generic, year-agnostic column names
+        header_info = []
+        for m in main_headers:
+            header_text = m.group(1).strip()
+            generic_header_text = re.sub(r'^Y20\d\d\s+', '', header_text)
+            generic_name = generic_header_text.replace(' ', '_').replace('-', '_')
+            header_info.append({'name': generic_name, 'start': m.start()})
         
         colspecs = [(0, 20), (20, 56), (56, 65)]
         names = ["Route_ID", "Group_Name", "Count"]
@@ -263,32 +283,24 @@ class StopsPRNExtractor:
         data_io = io.StringIO('\n'.join(all_data_text))
         df = pd.read_fwf(data_io, colspecs=colspecs, header=None, names=names, dtype=str)
         
-        df["Route_ID"] = df["Route_ID"].str.strip().replace('', pd.NA)
-        df["Group_Name"] = df["Group_Name"].str.strip().replace('', pd.NA)
-        
-        df['Route_Name'] = df['Group_Name'].apply(lambda x: x if pd.notna(x) and x.startswith('--') else pd.NA)
-        
-        df['Route_ID'] = df['Route_ID'].ffill()
-        df['Route_Name'] = df['Route_Name'].ffill()
-        
+        df["Route_ID"] = df["Route_ID"].str.strip().replace('', pd.NA).ffill()
+        df['Route_Name'] = df['Group_Name'].apply(lambda x: x if pd.notna(x) and x.startswith('--') else pd.NA).ffill()
         df.loc[df['Group_Name'].str.startswith('--', na=False), 'Group_Name'] = pd.NA
-        
-        # MODIFIED: Removed 'na=False' which is an invalid argument for the .eq() method.
-        is_total_header = df['Route_ID'].str.lower().str.strip().eq('total')
+        df["Group_Name"] = df["Group_Name"].str.strip().replace('', pd.NA)
+
+        is_total_header = df['Route_ID'].str.lower().str.strip() == 'total'
         df.loc[is_total_header, 'Route_Name'] = 'Total'
         
-        # MODIFIED: Removed 'na=False' which is an invalid argument for the .eq() method.
-        is_total_group_name = df['Group_Name'].str.lower().str.strip().eq('total')
+        is_total_group_name = df['Group_Name'].str.lower().str.strip() == 'total'
         df.loc[is_total_group_name, 'Group_Name'] = 'Total'
         df.loc[is_total_group_name, 'Route_Name'] = 'Total'
         
-        dynamic_cols = [name for name in names if name not in ["Route_ID", "Group_Name", "Count"]]
-        final_names_ordered = ["Route_ID", "Route_Name", "Group_Name", "Count"] + dynamic_cols
+        dynamic_cols = [name for name in names if name not in ["Route_ID", "Group_Name"]]
+        final_names_ordered = ["Route_ID", "Route_Name", "Group_Name"] + dynamic_cols
         df = df[final_names_ordered]
         
-        for col in df.columns:
-             if col not in ["Route_ID", "Route_Name", "Group_Name"]:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        for col in dynamic_cols:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
 
         return df, metadata
     
@@ -324,9 +336,11 @@ class StopsPRNExtractor:
         colspecs = [(0, 9), (9, 29), (29, 43), (44, 52), (52, 61), (61, 70), 
                     (70, 79), (79, 88), (88, 97), (97, 106), (106, 115)]
         
-        names = ["HH_Cars", "Sub_mode", "Access_mode", "Y2024_EXISTING_Model", "Y2024_EXISTING_Survey", 
-                 "Y2050_NO_BUILD_Model", "Y2050_NO_BUILD_Survey", "Y2050_BUILD_Model", "Y2050_BUILD_Survey", 
-                 "Y2050_BUILD_Project_Model", "Y2050_BUILD_Project_Survey"]
+        names = ["HH_Cars", "Sub_mode", "Access_mode",  
+                 "EXISTING_Model", "EXISTING_Survey", 
+                 "NO_BUILD_Model", "NO_BUILD_Survey", 
+                 "BUILD_Model", "BUILD_Survey", 
+                 "BUILD_Project_Model", "BUILD_Project_Survey"]
         
         for line in lines[start_of_data:]:
             if re.search(r"Table\s+\d+\.\d+", line) or re.search(r"Program STOPS", line):
@@ -341,6 +355,12 @@ class StopsPRNExtractor:
         data_io = io.StringIO('\n'.join(data_text))
         df = pd.read_fwf(data_io, colspecs=colspecs, header=None, names=names, dtype=str)
 
+        # MODIFIED: Add this block to filter out the unwanted separator rows
+        if not df.empty:
+            # Keep rows where the 'HH_Cars' column does NOT start with '...'
+            df = df[~df['HH_Cars'].str.strip().str.startswith('. . .', na=False)].copy()
+
+        # Clean and convert data types
         for col in df.columns:
             if isinstance(df[col].dtype, object):
                 df[col] = df[col].str.replace('|', '', regex=False).str.strip()
@@ -349,18 +369,17 @@ class StopsPRNExtractor:
                 df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
                 df[col] = df[col].fillna(0).astype(int)
         
+        # Forward fill the main grouping columns
         df['HH_Cars'] = df['HH_Cars'].mask(df['HH_Cars'].eq('')).ffill()
         df['Sub_mode'] = df['Sub_mode'].mask(df['Sub_mode'].eq('')).ffill()
         
         return df, metadata
-
 
 def get_extraction_method(table_id_str):
     """Dynamically gets the correct extraction method based on the table ID."""
     if table_id_str.startswith("11"):
         return StopsPRNExtractor._extract_table_11_from_prn
     
-    # Map specific table IDs to their extraction methods
     method_map = {
         "9.01": StopsPRNExtractor._extract_table_9_01_from_prn,
         "10.01": StopsPRNExtractor._extract_table_10_01_from_prn,
