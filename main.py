@@ -1,20 +1,27 @@
 import json
 import sys
+from pathlib import Path
 from extractor import run_extraction
 from reporter import run_reporting
 
-CONFIG_FILE = '[UPDATE ME] STOPS_Report Config.json'
+# Use Path for better cross-platform compatibility
+CONFIG_FILE = Path("[UPDATE ME] STOPS_Report Config.json")
 
 def main():
     """
     Main pipeline wrapper. Reads config and runs steps based on flags.
     """
+    print("Starting the data processing pipeline...")
+    print(f"Running {Path(__file__).name}")
+    print("--------------------------------------------------")
+
+    if not CONFIG_FILE.is_file():
+        print(f"❌ FATAL: Configuration file not found at '{CONFIG_FILE}'.")
+        sys.exit(1)
+
     try:
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
-    except FileNotFoundError:
-        print(f"❌ FATAL: Configuration file not found at '{CONFIG_FILE}'.")
-        sys.exit(1)
     except json.JSONDecodeError:
         print(f"❌ FATAL: '{CONFIG_FILE}' is not a valid JSON file.")
         sys.exit(1)
@@ -27,6 +34,8 @@ def main():
             run_extraction(config)
         except Exception as e:
             print(f"\n❌ FATAL ERROR during Data Extraction: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
     else:
         print("Skipping Data Extraction as per config.")
@@ -37,11 +46,15 @@ def main():
             run_reporting(config)
         except Exception as e:
             print(f"\n❌ FATAL ERROR during Report Generation: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
     else:
         print("Skipping Report Generation as per config.")
 
     print("\n🎉 Pipeline finished successfully!")
+    print("--------------------------------------------------")
+
 
 if __name__ == "__main__":
     main()
