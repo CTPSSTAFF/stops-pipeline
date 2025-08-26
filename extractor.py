@@ -725,20 +725,19 @@ class StopsPRNExtractor:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
         return df, metadata
-        
+
     @staticmethod
     def _extract_station_group_table(file_path, table_id, config):
         """
         REFACTORED: Dynamically extracts various "Station Group" table formats.
-        This single function handles tables with just a 'Total' column, as well
-        as those with 'TOTAL', 'GOAL', and 'COUNT' columns.
+        This version uses a robust manual parsing method based on content type
+        (text vs. number) to correctly handle all table variations and summary columns.
         """
         metadata = {}
-        data_lines = []
         in_table_section = False
-        header_line1 = None
-        header_line2 = None
-        start_of_data = -1
+        header_line_list = []
+        separator_index = -1
+        is_two_line_header = False
 
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -746,72 +745,94 @@ class StopsPRNExtractor:
         except FileNotFoundError:
             return pd.DataFrame(), {}
 
+        # 1. FIND HEADERS AND DATA START (same as before)
         for i, line in enumerate(lines):
             if re.search(r"Table\s+" + re.escape(table_id), line):
                 in_table_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
-            
-            # Find the start of the two-line header block
-            if in_table_section and ("Origin Group" in line or "District" in line):
-                # The next two lines should be the headers
-                if i + 2 < len(lines):
-                    header_line1 = lines[i+1]
-                    header_line2 = lines[i+2]
-            
-            # Find the "=====" separator that marks the beginning of data
-            if header_line1 and re.search(r"^=+", line.strip()):
-                start_of_data = i + 1
+
+            if in_table_section and separator_index == -1 and re.search(r"^=+", line.strip()):
+                separator_index = i
+                if separator_index > 0:
+                    header_line_list.insert(0, lines[separator_index - 1])
+                if separator_index > 1:
+                    prev_line = lines[separator_index - 2].strip()
+                    if prev_line and not re.search(r"^=+", prev_line) and "Group" not in prev_line and "District" not in prev_line:
+                        header_line_list.insert(0, lines[separator_index - 2])
+                        is_two_line_header = True
                 break
-        
-        if start_of_data == -1 or header_line1 is None:
+
+        if separator_index == -1:
             return pd.DataFrame(), metadata
 
-        # Dynamically determine which summary columns exist
-        summary_cols = []
-        if "TOTAL" in header_line1 or "Total" in header_line1:
-            summary_cols.append("TOTAL")
-        if "GOAL" in header_line1:
-            summary_cols.append("GOAL")
-        if "COUNT" in header_line1:
-            summary_cols.append("COUNT")
-            
-        # Parse the two header lines to create combined headers
-        h1_parts = header_line1.strip().split()
-        h2_parts = header_line2.strip().split()
-        
-        # Combine the parts that have two lines, then append the remaining single-line headers
-        headers = [f"{h1}-{h2}" for h1, h2 in zip(h1_parts, h2_parts)] + h1_parts[len(h2_parts):]
+        start_of_data = separator_index + 1
 
-        for line in lines[start_of_data:]:
-            # Stop at the end of the main data block
-            if "TOTAL" in line or "Total" in line or not line.strip() or line.strip().startswith("GOAL") or line.strip().startswith("COUNT"):
-                break
-            # Clean the first column which might be "1 Bostn :" or "1-Bostn :"
-            cleaned_line = re.sub(r'^\s*[\d\s]+-?(.*?)\s*:', r'\1', line).strip()
-            data_lines.append(cleaned_line)
-
-        if not data_lines:
-            return pd.DataFrame(), metadata
-
-        data_io = io.StringIO("\n".join(data_lines))
-        df = pd.read_csv(data_io, delim_whitespace=True, header=None)
-        
-        # Assign the dynamically generated headers
-        expected_cols = len(headers) + 1
-        if len(df.columns) == expected_cols:
-            df.columns = ["Origin_Group"] + headers
+        # 2. PARSE HEADERS TO GET FULL LIST OF EXPECTED COLUMNS
+        headers = []
+        if is_two_line_header:
+            h1_parts = header_line_list[0].strip().split()
+            h2_parts = header_line_list[1].strip().split()
+            headers.extend(h2_parts)
+            headers.extend(h1_parts[len(h2_parts):])
         else:
-            print(f"ERROR: Column mismatch in Table {table_id}. Expected {expected_cols}, found {len(df.columns)}.")
+            parts = header_line_list[0].strip().split()
+            headers = parts[1:]
+
+        # 3. MANUALLY PARSE DATA ROWS BASED ON CONTENT
+        parsed_rows = []
+        for line in lines[start_of_data:]:
+            stripped_line = line.strip()
+            if not stripped_line or stripped_line.upper().startswith(("TOTAL", "GOAL", "COUNT", "2-WAY")) or "Program STOPS" in line:
+                break
+            
+            parts = stripped_line.split()
+            
+            first_number_idx = -1
+            for i, part in enumerate(parts):
+                try:
+                    float(part)
+                    first_number_idx = i
+                    break 
+                except ValueError:
+                    continue
+
+            if first_number_idx != -1:
+                origin_group_raw = " ".join(parts[:first_number_idx])
+                numbers = parts[first_number_idx:]
+                
+                origin_group = re.sub(r'^[\d\s-]*', '', origin_group_raw).replace(':', '').strip()
+                
+                parsed_rows.append([origin_group] + numbers)
+
+        if not parsed_rows:
             return pd.DataFrame(), metadata
 
-        # Melt the DataFrame into a tidy (long) format
-        id_vars = ["Origin_Group"] + summary_cols
-        value_vars = [h for h in headers if h not in summary_cols]
+        # 4. CREATE DATAFRAME
+        df = pd.DataFrame(parsed_rows)
         
-        df_melted = df.melt(id_vars=id_vars, value_vars=value_vars, var_name='Destination_Group', value_name='Value')
+        # 5. ASSIGN HEADERS AND HANDLE MISMATCH
+        final_headers = ["Origin_Group"] + headers
+        
+        num_cols_data = len(df.columns)
+        num_cols_header = len(final_headers)
+        
+        if num_cols_data != num_cols_header:
+            print(f"    - WARNING: Column count mismatch in Table {table_id}. Data has {num_cols_data}, Header has {num_cols_header}. Adjusting.")
+            min_cols = min(num_cols_data, num_cols_header)
+            df = df.iloc[:, :min_cols]
+            df.columns = final_headers[:min_cols]
+        else:
+            df.columns = final_headers
 
-        return df_melted, metadata
+        # 6. CONVERT DATA TYPES AND CLEAN UP
+        for col in df.columns:
+            if col != 'Origin_Group':
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        df = df[df['Origin_Group'] != ''].reset_index(drop=True)
 
+        return df, metadata
+    
 def get_extraction_method(table_id_str, config):
     """
     Dynamically gets the extraction method based on the function name

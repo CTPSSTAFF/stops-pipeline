@@ -31,6 +31,7 @@
     ],
     "tables_to_extract": {
       "2.04": { "output_subfolder": "Table_2_04", "output_filename_template": "[{alias}]__2_04.csv" },
+      "2.05": { "output_subfolder": "Table_2_05", "output_filename_template": "[{alias}]__2_05.csv" },
       "4.01": { "output_subfolder": "Table_4_01", "output_filename_template": "[{alias}]__4_01.csv" },
       "9.01": { "output_subfolder": "Table_9_01", "output_filename_template": "[{alias}]__9_01.csv" },
       "10.01": { "output_subfolder": "Table_10_01", "output_filename_template": "[{alias}]__10_01.csv" },
