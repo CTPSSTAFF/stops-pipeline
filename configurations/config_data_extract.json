@@ -1,6 +1,6 @@
 {
   "run_flags": {
-    "CONDUCT_DATA_EXTRACTION": true
+    "CONDUCT_DATA_EXTRACTION": false
   },
   "prn_files_folderpath": "stops_prn_files",
   "output_base_folder": "extracted_csv_tables",

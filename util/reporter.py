@@ -1,123 +1,151 @@
 import pandas as pd
 from pathlib import Path
-import re
+import sys
 
-class ReportGenerator:
-    def __init__(self, config):
-        """Initializes the generator with settings from the config file."""
-        self.config = config
-        # UPDATED: Use the new, explicit input path key
-        self.csv_input_dir = Path(config["csv_input_folderpath"])
-        self.report_output_dir = Path(config["report_output_folderpath"])
-        self.report_output_dir.mkdir(parents=True, exist_ok=True)
+def _get_table_config_by_id(table_id, data_tables_config):
+    """
+    Finds the configuration for a specific table ID from the list of table configs.
+    
+    Args:
+        table_id (str): The ID of the table to find (e.g., "10.01").
+        data_tables_config (list): The list of table configuration dictionaries.
 
-    def generate_reports_from_config(self):
-        """Generates all reports defined in the config file."""
-        report_definitions = self.config.get("route_level_comparison_reports", [])
+    Returns:
+        dict: The matching table configuration dictionary, or None if not found.
+    """
+    for table_config in data_tables_config:
+        if table_config.get("table_id") == table_id:
+            return table_config
+    return None
 
-        if not report_definitions:
-            print("No 'route_level_comparison_reports' reports found in config.")
-            return
+def run_reporting(config_manager):
+    """
+    Generates summary reports by querying and combining data from multiple CSV files.
 
-        print(f"Found {len(report_definitions)} route-level comparison reports to generate.")
+    This function reads the reporting configuration to understand which reports to
+    create. For each report, it iterates through specified data aliases (e.g., "2024",
+    "2045"), reads the corresponding input CSV, filters it based on query
+    parameters, and combines the results into a single output CSV file.
+    """
+    print("\n--- 📊 Starting Report Generation ---")
+
+    # Get necessary configuration dictionaries from the manager
+    reporting_config = config_manager.reporting_config
+    if not reporting_config:
+        print("INFO: Reporting config not found. Skipping report generation.")
+        return
+
+    extraction_config = config_manager.extraction_config
+    if not extraction_config:
+        print("FATAL: Extraction config not found, cannot locate input CSVs for reporting.")
+        sys.exit(1)
+
+    data_tables_config = extraction_config.get("tables_to_extract", [])
+    if not data_tables_config:
+        print("FATAL: Data tables configuration not found in extraction_config. Cannot proceed.")
+        sys.exit(1)
         
-        for i, report_def in enumerate(report_definitions):
-            print(f"\n--- Generating Report {i+1}: '{report_def.get('output_filename', 'N/A')}' ---")
-            self.create_comparison_report(report_def)
+    # Get base paths and list of aliases to include
+    csv_input_base_path = Path(reporting_config.get("csv_input_folderpath", "extracted_csv_tables"))
+    report_output_base_path = Path(reporting_config.get("report_output_folderpath", "summary_reports"))
+    aliases_to_process = reporting_config.get("aliases_to_include_in_report", [])
+    reports_to_generate = reporting_config.get("data_query_reports", [])
 
-    def create_comparison_report(self, report_def):
-        """
-        Creates a single comparison report by filtering and pivoting data.
+    if not aliases_to_process:
+        print("WARNING: 'aliases_to_include_in_report' is empty. No reports will be generated.")
+        return
         
-        This method reads data from multiple scenario CSVs, filters for specific
-        route_ids, and then transforms the data into a summary table where each
-        row is a metric and each column is a scenario, making for easy comparison.
-        """
-        table_to_compare = report_def["table_to_compare"]
-        route_ids = report_def["route_ids"]
-        output_filename = report_def["output_filename"]
-        
-        all_data = []
-        
-        # Scan for input files instead of using a predefined list
-        table_folder_name = f"Table_{table_to_compare.replace('.', '_')}"
-        table_folder_path = self.csv_input_dir / table_folder_name
-        
-        if not table_folder_path.exists():
-            print(f"  - WARNING: Input folder not found: {table_folder_path}. Skipping report.")
-            return
+    if not reports_to_generate:
+        print("INFO: 'data_query_reports' is empty or not defined. Nothing to report.")
+        return
 
-        # Use glob to find all CSVs and extract the alias from the filename
-        for csv_path in table_folder_path.glob('[*]__*.csv'):
-            match = re.search(r"\[(.*?)\]", csv_path.name)
-            if not match:
-                print(f"  - WARNING: Could not extract alias from filename '{csv_path.name}'. Skipping.")
-                continue
-            alias = match.group(1)
+    # Process each report defined in the configuration
+    for report_query in reports_to_generate:
+        table_to_compare = report_query.get("table_to_compare")
+        output_filename = report_query.get("output_filename")
+        columns_to_query = report_query.get("column_to_query", [])
+        values_to_find = report_query.get("values", [])
+
+        if not all([table_to_compare, output_filename, columns_to_query, values_to_find]):
+            print("WARNING: Skipping a report due to missing configuration keys (e.g., table, output, column, or values).")
+            continue
             
+        print(f"\nProcessing report for table '{table_to_compare}' -> '{output_filename}'")
+        
+        # Find the configuration details for the table being processed
+        table_config = _get_table_config_by_id(table_to_compare, data_tables_config)
+        if not table_config:
+            print(f"  - ❌ ERROR: No configuration found for table_id '{table_to_compare}' in config_data_tables.json. Skipping.")
+            continue
+            
+        # Get the subfolder and filename template for the input CSVs
+        csv_subfolder = table_config.get("output_subfolder")
+        csv_filename_template = table_config.get("output_filename_template")
+        
+        if not all([csv_subfolder, csv_filename_template]):
+             print(f"  - ❌ ERROR: Table config for '{table_to_compare}' is missing 'output_subfolder' or 'output_filename_template'. Skipping.")
+             continue
+
+        all_data_for_report = []
+
+        # Iterate through each specified alias (e.g., "2024", "2045", "example")
+        for alias in aliases_to_process:
+            filename = csv_filename_template.format(alias=alias)
+            input_csv_path = csv_input_base_path / csv_subfolder / filename
+            
+            print(f"  - Reading and filtering '{input_csv_path}'...")
+
+            if not input_csv_path.is_file():
+                print("    - WARNING: File not found. Skipping this alias for the report.")
+                continue
+
             try:
-                df = pd.read_csv(csv_path)
-                if "Route_ID" not in df.columns:
-                    print(f"  - ERROR: 'Route_ID' column not found in {csv_path}. Skipping.")
+                # Load the source data
+                source_df = pd.read_csv(input_csv_path)
+                
+                # Apply the filter based on the query configuration
+                filtered_df = source_df.copy()
+                final_mask = pd.Series(True, index=filtered_df.index)
+                
+                for i, column in enumerate(columns_to_query):
+                    query_values = values_to_find[i]
+                    if column not in filtered_df.columns:
+                        print(f"    - WARNING: Column '{column}' not found in '{input_csv_path}'. Skipping this filter condition.")
+                        continue
+                    
+                    # Create a mask for the current condition using 'startswith' for flexibility
+                    # e.g., 'Green' will match 'Green-B', 'Green-C', etc.
+                    condition_mask = filtered_df[column].astype(str).str.startswith(tuple(query_values), na=False)
+                    final_mask &= condition_mask
+                    
+                filtered_df = filtered_df[final_mask]
+
+                if filtered_df.empty:
+                    print("    - INFO: No rows matched the query criteria in this file.")
                     continue
                 
-                filtered_df = df[df['Route_ID'].isin(route_ids)].copy()
-                filtered_df['alias'] = alias
-                all_data.append(filtered_df)
-                print(f"  - Processing data from alias '{alias}'...")
+                # Add an 'Alias' column to identify the data source in the final report
+                filtered_df.insert(0, 'Alias', alias)
+                
+                all_data_for_report.append(filtered_df)
+
             except Exception as e:
-                print(f"  - ERROR: Could not process {csv_path}: {e}")
+                print(f"    - ❌ ERROR: Failed to process file '{input_csv_path}'. Reason: {e}")
 
-        if not all_data:
-            print(f"  - No data found across all sources to generate report '{output_filename}'.")
-            return
+        # Combine data from all aliases into one report file
+        if all_data_for_report:
+            final_report_df = pd.concat(all_data_for_report, ignore_index=True)
             
-        combined_df = pd.concat(all_data, ignore_index=True)
-        
-        # Define index and value columns for pivoting
-        index_cols = ['Route_ID', 'Route_Name']
-        valid_index_cols = [col for col in index_cols if col in combined_df.columns]
-        
-        if not valid_index_cols:
-            print(f"  - ERROR: Index columns {index_cols} not found in the data. Cannot pivot.")
-            return
-
-        value_cols = [col for col in combined_df.columns if col not in valid_index_cols + ['alias']]
-        
-        try:
-            # 1. Melt the DataFrame to convert metrics from columns to rows (long format)
-            melted_df = combined_df.melt(
-                id_vars=valid_index_cols + ['alias'],
-                value_vars=value_cols,
-                var_name='Metric',
-                value_name='Value'
-            )
-
-            # 2. Pivot the melted data to create the final comparison table
-            #    Rows: Route ID, Route Name, Metric
-            #    Columns: Each scenario (alias)
-            final_report_df = melted_df.pivot_table(
-                index=valid_index_cols + ['Metric'],
-                columns='alias',
-                values='Value'
-            )
-
-            # 3. Clean up the DataFrame for a tidy CSV output
-            final_report_df.reset_index(inplace=True)
-            final_report_df.rename_axis(None, axis=1, inplace=True)
-
-            # 4. Save the final report
-            output_path = self.report_output_dir / output_filename
+            # Construct the full output path for the report
+            output_path = report_output_base_path / output_filename
+            
+            # Ensure the parent directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Save the combined DataFrame to a new CSV
             final_report_df.to_csv(output_path, index=False)
-            print(f"✅ Report saved successfully to: {output_path}")
+            print(f"  - ✅ Report successfully generated at '{output_path}'")
+        else:
+            print(f"  - INFO: No data found across all specified aliases for this report. No output file was created.")
 
-        except Exception as e:
-            print(f"  - ERROR: Failed to pivot and save report '{output_filename}'. Reason: {e}")
-
-
-def run_reporting(config):
-    """Main function to run the report generation process."""
-    print("--- 📊 Starting Report Generation ---")
-    generator = ReportGenerator(config)
-    generator.generate_reports_from_config()
     print("\n--- ✅ Report Generation Complete ---")

@@ -9,39 +9,42 @@
         "2045",
         "example"
     ],
-    "data_row_report": [
+    "data_query_reports": [
         {
             "output_filename": "rapid_transit_comparison.csv",
             "table_to_compare": "10.01",
-            "column_to_compare": ["Route_ID"],
+            "column_to_query": ["Route_ID"],
             "values": [
                 [
-                    "Blue",
-                    "Green",
-                    "Mattapan",
-                    "Orange",
-                    "Red"
+                    "Green-B&T",
+                    "Green-C&T",
+                    "Green-D&T",
+                    "Green-E&T",
+                    "Mattapan&T",
+                    "Orange&T",
+                    "Red&T",
+                    "Blue&T"
                 ]
             ]
         },
         {
             "output_filename": "commuter_rail_comparison.csv",
             "table_to_compare": "10.01",
-            "column_to_compare": ["Route_ID"],
+            "column_to_query": ["Route_ID"],
             "values": [
                 [
-                    "Fairmount",
-                    "Fitchburg",
-                    "Franklin",
-                    "Greenbush",
-                    "Haverhill",
-                    "Kingston",
-                    "Lowell",
-                    "Middleborough",
-                    "Needham",
-                    "Newburyport",
-                    "Providence",
-                    "Worcester"
+                    "CR-Fairmount&T",
+                    "CR-Fitchburg&T",
+                    "CR-Franklin&T",
+                    "CR-Greenbush&T",
+                    "CR-Haverhill&T",
+                    "CR-Kingston&T",
+                    "CR-Lowell&T",
+                    "CR-Middleborough&T",
+                    "CR-Needham&T",
+                    "CR-Newburyport&T",
+                    "CR-Providence&T",
+                    "CR-Worcester&T"
                 ]
             ]
         }

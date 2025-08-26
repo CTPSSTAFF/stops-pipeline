@@ -10,7 +10,7 @@ class ConfigManager:
     """
     # Define filepaths internally as class attributes
     _EXTRACTION_CONFIG_PATH = Path("configurations/config_data_extract.json")
-    _REPORTING_CONFIG_PATH = Path("configurations/config_data_report.json")
+    _REPORTING_CONFIG_PATH = Path("configurations/config_data_reports.json")
 
     def __init__(self):
         """
