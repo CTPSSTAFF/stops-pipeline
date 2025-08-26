@@ -678,9 +678,9 @@ class StopsPRNExtractor:
     @staticmethod
     def _extract_district_table(file_path, table_id, config):
         """
-        REVISED: Extracts and pivots matrix-style 'District' tables using manual parsing.
+        Extracts and pivots matrix-style 'District' tables using manual parsing.
         This version correctly handles the table's structure by separating the row
-        header from the numeric data and includes the final "Total" summary row.
+        header from the numeric data, avoiding the errors caused by pd.read_csv.
         """
         metadata = {}
         data_lines = []
@@ -701,8 +701,9 @@ class StopsPRNExtractor:
                 in_table_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
-            # More specific header detection based on your feedback
-            if in_table_section and header_line is None and stripped_line.startswith("Idist"):
+            # FIX: Make header detection more specific. The header line must START with "Idist" or "District".
+            if in_table_section and header_line is None and (stripped_line.startswith("Idist")):
+            # if in_table_section and header_line is None and (stripped_line.startswith("Idist") or stripped_line.startswith("District")):
                 header_line = line
             
             if header_line and re.search(r"^=+", stripped_line):
@@ -710,6 +711,7 @@ class StopsPRNExtractor:
                 break
         
         if start_of_data == -1 or header_line is None:
+            # Add a warning if the header was not found, which is a common failure point.
             print(f"     - WARNING: Could not find a valid header row for Table {table_id}. Skipping.")
             return pd.DataFrame(), metadata
 
@@ -718,17 +720,12 @@ class StopsPRNExtractor:
         if headers[0].lower() in ['idist', 'district']:
             headers[0] = "Origin_District"
         
-        # 3. Collect the actual data lines, now including the "Total" summary row
+        # 3. Collect the actual data lines, stopping at the "Total" summary row
         for line in lines[start_of_data:]:
-            stripped_line = line.strip()
-            if not stripped_line:
+            # The "Total" row signals the end of the main data matrix
+            if line.strip().startswith("Total") or not line.strip():
                 break
-            
-            data_lines.append(stripped_line)
-            
-            # FIX: Break AFTER appending the "Total" line to include it
-            if stripped_line.startswith("Total"):
-                break
+            data_lines.append(line.strip())
             
         if not data_lines:
             return pd.DataFrame(), metadata
@@ -744,6 +741,7 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         # 5. Create the DataFrame from the parsed rows and headers
+        # Ensure that the number of columns assigned matches the data
         num_data_cols = len(parsed_rows[0])
         # A safety check in case the header has more parts than the data rows
         if len(headers) < num_data_cols:
@@ -792,7 +790,10 @@ class StopsPRNExtractor:
                     header_line_list.insert(0, lines[separator_index - 1])
                 if separator_index > 1:
                     prev_line = lines[separator_index - 2].strip()
-                    if prev_line and not re.search(r"^=+", prev_line) and "Group" not in prev_line and "District" not in prev_line:
+                    # FIX: The original check wrongly excluded lines with "Group", which prevented
+                    # the detection of a two-line header. This now correctly checks if the line
+                    # above the main header is also a text line.
+                    if prev_line and not re.search(r"^=+", prev_line):
                         header_line_list.insert(0, lines[separator_index - 2])
                         is_two_line_header = True
                 break
@@ -805,13 +806,23 @@ class StopsPRNExtractor:
         # 2. PARSE HEADERS TO GET FULL LIST OF EXPECTED COLUMNS
         headers = []
         if is_two_line_header:
+            # FIX: Reworked header parsing for two-line headers.
+            # Line 1 has numbers and summary words (e.g., 'Origin Group 1 2... TOTAL')
             h1_parts = header_line_list[0].strip().split()
+            # Line 2 has the actual column names (e.g., 'Bostn Maldn ...')
             h2_parts = header_line_list[1].strip().split()
+
+            # The main data column headers are the text names from the second line.
             headers.extend(h2_parts)
-            headers.extend(h1_parts[len(h2_parts):])
+
+            # Add any alphabetic summary columns from the end of the first header line.
+            summary_headers = [p for p in h1_parts if p.isalpha() and p.lower() not in ['origin', 'group']]
+            headers.extend(summary_headers)
         else:
-            parts = header_line_list[0].strip().split()
-            headers = parts[1:]
+            # Single-line header case
+            # FIX: The original logic `parts[1:]` incorrectly sliced off the first header.
+            # This now correctly takes all words from the single header line.
+            headers = header_line_list[0].strip().split()
 
         # 3. MANUALLY PARSE DATA ROWS BASED ON CONTENT
         parsed_rows = []
