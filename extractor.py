@@ -695,7 +695,7 @@ class StopsPRNExtractor:
                 in_table_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
-            if in_table_section and header_line is None and "Idist" in line:
+            if in_table_section and header_line is None and ("Idist" in line or "District" in line):
                 header_line = line
             
             if header_line and re.search(r"^=+", line.strip()):
@@ -706,6 +706,8 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         headers = header_line.strip().split()
+        if headers[0].lower() == 'idist' or headers[0].lower() == 'district':
+             headers[0] = "Origin_District"
         
         for line in lines[start_of_data:]:
             if "Total" in line or not line.strip():
@@ -716,18 +718,21 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         data_io = io.StringIO("\n".join(data_lines))
-        df = pd.read_csv(data_io, delim_whitespace=True, header=None, names=headers)
+        df = pd.read_csv(data_io, delim_whitespace=True, header=None, names=headers, dtype=str)
         
-        df = df.melt(id_vars=['Idist'], var_name='Jdist', value_name='Trips')
-        df.rename(columns={'Idist': 'Origin_District', 'Jdist': 'Destination_District'}, inplace=True)
-        df = df[['Origin_District', 'Destination_District', 'Trips']]
-        df['Trips'] = pd.to_numeric(df['Trips'], errors='coerce').fillna(0).astype(int)
+        for col in df.columns:
+            if col != 'Origin_District':
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
         return df, metadata
-
+        
     @staticmethod
     def _extract_station_group_table(file_path, table_id, config):
-        """Extracts and pivots the two-line header 'Station Group' tables."""
+        """
+        REFACTORED: Dynamically extracts various "Station Group" table formats.
+        This single function handles tables with just a 'Total' column, as well
+        as those with 'TOTAL', 'GOAL', and 'COUNT' columns.
+        """
         metadata = {}
         data_lines = []
         in_table_section = False
@@ -746,26 +751,43 @@ class StopsPRNExtractor:
                 in_table_section = True
                 metadata = StopsPRNExtractor._extract_metadata_from_prn(lines, i)
             
-            if in_table_section and "Origin Group" in line:
-                header_line1 = lines[i+1] 
-                header_line2 = lines[i+2] 
+            # Find the start of the two-line header block
+            if in_table_section and ("Origin Group" in line or "District" in line):
+                # The next two lines should be the headers
+                if i + 2 < len(lines):
+                    header_line1 = lines[i+1]
+                    header_line2 = lines[i+2]
             
-            if header_line2 and re.search(r"^=+", line.strip()):
+            # Find the "=====" separator that marks the beginning of data
+            if header_line1 and re.search(r"^=+", line.strip()):
                 start_of_data = i + 1
                 break
         
-        if start_of_data == -1 or header_line2 is None:
+        if start_of_data == -1 or header_line1 is None:
             return pd.DataFrame(), metadata
 
+        # Dynamically determine which summary columns exist
+        summary_cols = []
+        if "TOTAL" in header_line1 or "Total" in header_line1:
+            summary_cols.append("TOTAL")
+        if "GOAL" in header_line1:
+            summary_cols.append("GOAL")
+        if "COUNT" in header_line1:
+            summary_cols.append("COUNT")
+            
+        # Parse the two header lines to create combined headers
         h1_parts = header_line1.strip().split()
         h2_parts = header_line2.strip().split()
         
-        headers = [f"{h1}-{h2}" for h1, h2 in zip(h1_parts, h2_parts)] + h2_parts[len(h1_parts):]
-        
+        # Combine the parts that have two lines, then append the remaining single-line headers
+        headers = [f"{h1}-{h2}" for h1, h2 in zip(h1_parts, h2_parts)] + h1_parts[len(h2_parts):]
+
         for line in lines[start_of_data:]:
-            if "TOTAL" in line or not line.strip():
+            # Stop at the end of the main data block
+            if "TOTAL" in line or "Total" in line or not line.strip() or line.strip().startswith("GOAL") or line.strip().startswith("COUNT"):
                 break
-            cleaned_line = re.sub(r'^\s*\d+-(.*?)\s*:', r'\1', line).strip()
+            # Clean the first column which might be "1 Bostn :" or "1-Bostn :"
+            cleaned_line = re.sub(r'^\s*[\d\s]+-?(.*?)\s*:', r'\1', line).strip()
             data_lines.append(cleaned_line)
 
         if not data_lines:
@@ -774,10 +796,17 @@ class StopsPRNExtractor:
         data_io = io.StringIO("\n".join(data_lines))
         df = pd.read_csv(data_io, delim_whitespace=True, header=None)
         
-        df.columns = ["Origin_Group"] + headers
-        
-        id_vars = ["Origin_Group", "TOTAL", "GOAL", "COUNT"]
-        value_vars = [h for h in headers if h not in ["TOTAL", "GOAL", "COUNT"]]
+        # Assign the dynamically generated headers
+        expected_cols = len(headers) + 1
+        if len(df.columns) == expected_cols:
+            df.columns = ["Origin_Group"] + headers
+        else:
+            print(f"ERROR: Column mismatch in Table {table_id}. Expected {expected_cols}, found {len(df.columns)}.")
+            return pd.DataFrame(), metadata
+
+        # Melt the DataFrame into a tidy (long) format
+        id_vars = ["Origin_Group"] + summary_cols
+        value_vars = [h for h in headers if h not in summary_cols]
         
         df_melted = df.melt(id_vars=id_vars, value_vars=value_vars, var_name='Destination_Group', value_name='Value')
 
