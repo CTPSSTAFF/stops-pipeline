@@ -707,7 +707,7 @@ class StopsPRNExtractor:
 
         headers = header_line.strip().split()
         if headers[0].lower() == 'idist' or headers[0].lower() == 'district':
-             headers[0] = "Origin_District"
+                headers[0] = "Origin_District"
         
         for line in lines[start_of_data:]:
             if "Total" in line or not line.strip():
@@ -718,7 +718,7 @@ class StopsPRNExtractor:
             return pd.DataFrame(), metadata
 
         data_io = io.StringIO("\n".join(data_lines))
-        df = pd.read_csv(data_io, delim_whitespace=True, header=None, names=headers, dtype=str)
+        df = pd.read_csv(data_io, sep=r'\s+', header=None, names=headers, dtype=str, engine='python')
         
         for col in df.columns:
             if col != 'Origin_District':
